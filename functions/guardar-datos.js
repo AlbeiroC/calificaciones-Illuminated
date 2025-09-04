@@ -8,8 +8,16 @@ exports.handler = async function(event, context) {
       throw new Error('Faltan variables de entorno SUPABASE_URL o SUPABASE_KEY');
     }
 
+    // Validar que event.body exista y sea un JSON válido
+    if (!event.body) {
+      throw new Error('No se proporcionaron datos en el cuerpo de la solicitud');
+    }
     const datos = JSON.parse(event.body);
+    if (!datos.jugadores || !Array.isArray(datos.jugadores)) {
+      throw new Error('El cuerpo de la solicitud debe contener un array "jugadores"');
+    }
 
+    // Iterar y guardar cada jugador
     for (const jugador of datos.jugadores) {
       const response = await fetch(`${SUPABASE_URL}/rest/v1/jugadores`, {
         method: 'POST',
@@ -21,8 +29,10 @@ exports.handler = async function(event, context) {
         },
         body: JSON.stringify(jugador)
       });
+
       if (!response.ok) {
-        throw new Error(`Error al guardar jugador ${jugador.nombre}: ${response.statusText}`);
+        const errorText = await response.text(); // Obtener detalles del error
+        throw new Error(`Error al guardar jugador ${jugador.nombre}: ${response.status} - ${errorText}`);
       }
     }
 
