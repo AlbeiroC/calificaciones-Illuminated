@@ -1,4 +1,5 @@
-import { createClient } from '@supabase/supabase-js';
+// Cargar Supabase desde CDN
+const { createClient } = window['@supabase/supabase-js'];
 
 // Configura las credenciales de Supabase (reemplaza con tus valores reales)
 const supabaseUrl = 'https://faaeszqpwybpmsasbywl.supabase.co';
