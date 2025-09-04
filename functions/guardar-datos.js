@@ -1,33 +1,43 @@
-const fetch = require('node-fetch');
+const { createClient } = require('@supabase/supabase-js');
+const supabaseUrl = process.env.SUPABASE_URL;
+const supabaseKey = process.env.SUPABASE_KEY;
+const supabase = createClient(supabaseUrl, supabaseKey);
 
-exports.handler = async function(event, context) {
+// ID del usuario autorizado (reemplaza con el user_id del admin)
+const ALLOWED_USER_ID = '6594ad3c-020b-4671-8321-7b60138faedf';
+
+exports.handler = async (event) => {
+  if (event.httpMethod !== 'POST') {
+    return {
+      statusCode: 405,
+      body: JSON.stringify({ error: 'Method not allowed' }),
+    };
+  }
+
+  const authHeader = event.headers.authorization;
+  if (!authHeader) {
+    return {
+      statusCode: 401,
+      body: JSON.stringify({ error: 'No authorization header' }),
+    };
+  }
+
+  const token = authHeader.replace('Bearer ', '');
+  const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+
+  if (authError || !user || user.id !== ALLOWED_USER_ID) {
+    return {
+      statusCode: 403,
+      body: JSON.stringify({ error: 'Unauthorized: Only the admin can modify data' }),
+    };
+  }
+
   try {
-    const SUPABASE_URL = process.env.SUPABASE_URL;
-    const SUPABASE_KEY = process.env.SUPABASE_KEY;
-    if (!SUPABASE_URL || !SUPABASE_KEY) {
-      throw new Error('Faltan variables de entorno SUPABASE_URL o SUPABASE_KEY');
-    }
+    const { jugadores, vistaActual } = JSON.parse(event.body);
 
-    console.log('Raw event.body:', event.body);
-    if (!event.body) {
-      throw new Error('No se proporcionaron datos en el cuerpo de la solicitud');
-    }
-    const datos = JSON.parse(event.body);
-    console.log('Parsed datos:', datos);
-    if (!datos.jugadores || !Array.isArray(datos.jugadores)) {
-      throw new Error('El cuerpo de la solicitud debe contener un array "jugadores"');
-    }
-
-    console.log('Datos a guardar:', datos.jugadores);
-    const savedPlayers = [];
-
-    for (const jugador of datos.jugadores) {
-      if (!jugador.nombre || !jugador.fecha) {
-        throw new Error(`Jugador ${jugador.nombre || 'sin nombre'} falta campo requerido (nombre o fecha)`);
-      }
-
-      // Filtrar solo los campos válidos
-      const jugadorFiltrado = {
+    const { error } = await supabase
+      .from('jugadores')
+      .insert(jugadores.map(jugador => ({
         nombre: jugador.nombre,
         fecha: jugador.fecha,
         asistencia: jugador.asistencia,
@@ -35,38 +45,20 @@ exports.handler = async function(event, context) {
         actitud: jugador.actitud,
         bonificaciones: jugador.bonificaciones,
         total: jugador.total,
-        timestamp: jugador.timestamp // Incluye solo si existe en la tabla
-      };
+        timestamp: jugador.timestamp || new Date().toISOString(),
+      })));
 
-      const response = await fetch(`${SUPABASE_URL}/rest/v1/jugadores`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${SUPABASE_KEY}`,
-          'apikey': SUPABASE_KEY,
-          'Prefer': 'return=representation'
-        },
-        body: JSON.stringify(jugadorFiltrado)
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Error al guardar jugador ${jugador.nombre}: ${response.status} - ${errorText}`);
-      }
-
-      const result = await response.json();
-      savedPlayers.push(result[0]);
-    }
+    if (error) throw error;
 
     return {
       statusCode: 200,
-      body: JSON.stringify({ message: 'Datos guardados correctamente', data: savedPlayers })
+      body: JSON.stringify({ message: 'Datos guardados correctamente' }),
     };
   } catch (error) {
-    console.error('Error en guardar-datos:', error);
+    console.error('Error al guardar datos:', error);
     return {
       statusCode: 500,
-      body: JSON.stringify({ message: 'Error al guardar datos', error: error.message })
+      body: JSON.stringify({ error: 'Error interno al guardar datos' }),
     };
   }
 };

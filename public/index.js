@@ -1,12 +1,34 @@
+import { createClient } from '@supabase/supabase-js';
+// Reemplaza con tus credenciales de Supabase
+const supabaseUrl = '6594ad3c-020b-4671-8321-7b60138faedf';
+const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZhYWVzenFwd3licG1zYXNieXdsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTY4NDQzMTksImV4cCI6MjA3MjQyMDMxOX0.WYEykLzGGoQwZ73W7Cbm9lgZRUQSo5bbWWXvLi4uY98';
+const supabase = createClient(supabaseUrl, supabaseAnonKey);
+
 let jugadores = [];
 let vistaActual = "ranking";
 const STORAGE_KEY = "illuminated_fc_data";
+let isAdmin = false;
 
-// Cargar datos desde Supabase al iniciar
+async function checkAuth() {
+  const { data: { session }, error } = await supabase.auth.getSession();
+  if (error || !session) {
+    console.log('Usuario no autenticado');
+    return false;
+  }
+  isAdmin = session.user.id === '6594ad3c-020b-4671-8321-7b60138faedf'; // Reemplaza con el user_id del admin
+  return isAdmin;
+}
+
 async function cargarDatos() {
   try {
     jugadores = []; // Inicializar como array vacío
-    const response = await fetch('/.netlify/functions/cargar-datos');
+    const isAuthenticated = await checkAuth();
+    if (!isAuthenticated) {
+      throw new Error('Usuario no autorizado');
+    }
+    const response = await fetch('/.netlify/functions/cargar-datos', {
+      headers: { Authorization: `Bearer ${await supabase.auth.getSession().then(s => s.data.session.access_token)}` },
+    });
     if (!response.ok) {
       throw new Error('Error al cargar desde Supabase');
     }
@@ -34,10 +56,14 @@ async function cargarDatos() {
 
 async function guardarDatos(nuevoJugador) {
   try {
-    console.log('Guardando datos - nuevoJugador:', nuevoJugador); // Depuración
+    const isAuthenticated = await checkAuth();
+    if (!isAuthenticated) {
+      mostrarNotificacion("No autorizado para guardar datos", "error");
+      return;
+    }
+    console.log('Guardando datos - nuevoJugador:', nuevoJugador);
     let datos;
     if (nuevoJugador) {
-      // Caso 1: Guardar un nuevo jugador
       const jugadorFiltrado = {
         nombre: nuevoJugador.nombre,
         fecha: nuevoJugador.fecha,
@@ -46,15 +72,14 @@ async function guardarDatos(nuevoJugador) {
         actitud: nuevoJugador.actitud,
         bonificaciones: nuevoJugador.bonificaciones,
         total: nuevoJugador.total,
-        timestamp: nuevoJugador.timestamp // Incluye solo si existe en la tabla
+        timestamp: nuevoJugador.timestamp || new Date().toISOString(),
       };
       datos = {
         jugadores: [jugadorFiltrado],
         vistaActual: vistaActual,
-        fechaGuardado: new Date().toISOString()
+        fechaGuardado: new Date().toISOString(),
       };
     } else {
-      // Caso 2: Guardar el estado completo de jugadores (para eliminaciones o limpieza)
       datos = {
         jugadores: jugadores.map(j => ({
           nombre: j.nombre,
@@ -64,17 +89,20 @@ async function guardarDatos(nuevoJugador) {
           actitud: j.actitud,
           bonificaciones: j.bonificaciones,
           total: j.total,
-          timestamp: j.timestamp // Incluye solo si existe en la tabla
+          timestamp: j.timestamp || new Date().toISOString(),
         })),
         vistaActual: vistaActual,
-        fechaGuardado: new Date().toISOString()
+        fechaGuardado: new Date().toISOString(),
       };
     }
 
     const response = await fetch('/.netlify/functions/guardar-datos', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(datos)
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${await supabase.auth.getSession().then(s => s.data.session.access_token)}`,
+      },
+      body: JSON.stringify(datos),
     });
     if (!response.ok) {
       const errorText = await response.text();
@@ -82,11 +110,10 @@ async function guardarDatos(nuevoJugador) {
     }
     console.log("💾 Datos guardados en Supabase");
     mostrarNotificacion("Datos guardados correctamente", "success");
-    // Actualizar localStorage con el estado completo
     localStorage.setItem(STORAGE_KEY, JSON.stringify({
       jugadores: jugadores,
       vistaActual: vistaActual,
-      fechaGuardado: new Date().toISOString()
+      fechaGuardado: new Date().toISOString(),
     }));
   } catch (error) {
     console.error("❌ Error al guardar datos:", error);
@@ -94,7 +121,7 @@ async function guardarDatos(nuevoJugador) {
     localStorage.setItem(STORAGE_KEY, JSON.stringify({
       jugadores: jugadores,
       vistaActual: vistaActual,
-      fechaGuardado: new Date().toISOString()
+      fechaGuardado: new Date().toISOString(),
     }));
   }
 }
@@ -124,12 +151,29 @@ function mostrarNotificacion(mensaje, tipo = "info") {
 }
 
 // Establecer fecha actual por defecto
-document.addEventListener("DOMContentLoaded", () => {
+document.addEventListener("DOMContentLoaded", async () => {
   document.getElementById("matchDate").valueAsDate = new Date();
+  await cargarDatos();
+  actualizarResultados();
+  if (jugadores.length > 0) {
+    setTimeout(() => mostrarNotificacion(`Bienvenido de vuelta! ${jugadores.length} registros cargados`, "info"), 1000);
+  }
+  if (!(await checkAuth())) {
+    const loginBtn = document.createElement("button");
+    loginBtn.textContent = "Iniciar Sesión";
+    loginBtn.onclick = () => supabase.auth.signInWithOAuth({ provider: 'google' }); // Ajusta según tu proveedor
+    document.body.appendChild(loginBtn);
+    // Deshabilita botones de modificación
+    document.querySelectorAll('.btn, .expand-btn, input, .clear-btn').forEach(el => el.disabled = true);
+  }
 });
 
 // Calcular calificación
 function calcularCalificacion() {
+  if (!(await checkAuth())) {
+    mostrarNotificacion("Solo el administrador puede calificar jugadores", "error");
+    return;
+  }
   const nombre = document.getElementById("playerName").value.trim();
   const fecha = document.getElementById("matchDate").value;
 
@@ -154,9 +198,9 @@ function calcularCalificacion() {
 
   const total = asistencia + rendimiento + actitud + bonificaciones;
   const jugador = { nombre, fecha, asistencia, rendimiento, actitud, bonificaciones, bonificacionesDetalle, total, timestamp: new Date() };
-  jugadores.unshift(jugador); // Agrega al array global
+  jugadores.unshift(jugador);
 
-  guardarDatos(jugador); // Pasa solo el nuevo jugador
+  guardarDatos(jugador);
   mostrarNotificacion(`Calificación de ${nombre} guardada correctamente`, "success");
   actualizarResultados();
 
@@ -255,16 +299,16 @@ function mostrarRankingConsolidado(container) {
         <td>${jugador.totalPartidos}</td>
         <td style="color: #51cf66; font-weight: bold;">${jugador.mejorPartido}</td>
         <td>${jugador.ultimaFecha.toLocaleDateString("es-ES")}</td>
-        <td><button class="expand-btn" onclick="toggleHistorialJugador('${jugador.nombre}')">Ver Historial</button></td>
+        <td><button class="expand-btn" onclick="toggleHistorialJugador('${jugador.nombre}')" ${!isAdmin ? 'disabled' : ''}>Ver Historial</button></td>
       </tr>
       <tr id="historial-${jugador.nombre.replace(/\s+/g, "-")}" style="display: none;"><td colspan="7"><div class="player-history"><h4 style="margin-bottom: 8px; color: #000;">Historial de ${jugador.nombre}</h4>${jugador.partidos.map((partido, idx) => `
         <div class="history-item">
           <div><strong>${new Date(partido.fecha).toLocaleDateString("es-ES")}</strong> - ${partido.total} pts (A:${partido.asistencia} | R:${partido.rendimiento} | C:${partido.actitud}${partido.bonificaciones > 0 ? ` | B:${partido.bonificaciones}` : ""})</div>
-          <button onclick="eliminarPartido(${jugadores.indexOf(partido)})" style="background: #dc3545; color: white; border: none; border-radius: 4px; padding: 2px 6px; cursor: pointer; font-size: 10px;">Eliminar</button>
+          <button onclick="eliminarPartido(${jugadores.indexOf(partido)})" style="background: #dc3545; color: white; border: none; border-radius: 4px; padding: 2px 6px; cursor: pointer; font-size: 10px;" ${!isAdmin ? 'disabled' : ''}>Eliminar</button>
         </div>`).join("")}</div></td></tr>
     `;
   });
-  html += `</tbody></table><div style="display: flex; gap: 8px; margin-top: 15px; flex-wrap: wrap;"><button class="btn" onclick="exportarDatos()" style="flex: 1; background: #28a745; border-color: #28a745;">📤 Exportar Datos</button><button class="btn" onclick="importarDatos()" style="flex: 1; background: #17a2b8; border-color: #17a2b8;">📥 Importar Datos</button></div><button class="btn clear-btn" onclick="limpiarTodo()">🗑️ Limpiar Todo el Historial</button>`;
+  html += `</tbody></table><div style="display: flex; gap: 8px; margin-top: 15px; flex-wrap: wrap;"><button class="btn" onclick="exportarDatos()" style="flex: 1; background: #28a745; border-color: #28a745;" ${!isAdmin ? 'disabled' : ''}>📤 Exportar Datos</button><button class="btn" onclick="importarDatos()" style="flex: 1; background: #17a2b8; border-color: #17a2b8;" ${!isAdmin ? 'disabled' : ''}>📥 Importar Datos</button></div><button class="btn clear-btn" onclick="limpiarTodo()" ${!isAdmin ? 'disabled' : ''}>🗑️ Limpiar Todo el Historial</button>`;
   container.innerHTML = html;
 }
 
@@ -297,7 +341,7 @@ function mostrarHistorialCompleto(container) {
               <div style="margin-left: 8px; font-size: 0.85rem; color: #666;">${new Date(jugador.fecha).toLocaleDateString("es-ES")}</div>
             </div>
           </div>
-          <button onclick="eliminarPartido(${originalIndex})" style="background: #dc3545; color: white; border: none; border-radius: 50%; width: 25px; height: 25px; cursor: pointer; font-size: 14px; margin-left: 8px;">×</button>
+          <button onclick="eliminarPartido(${originalIndex})" style="background: #dc3545; color: white; border: none; border-radius: 50%; width: 25px; height: 25px; cursor: pointer; font-size: 14px; margin-left: 8px;" ${!isAdmin ? 'disabled' : ''}>×</button>
         </div>
         <div class="score-breakdown"><strong>Desglose:</strong><br>Asistencia: ${jugador.asistencia} pts | Rendimiento: ${jugador.rendimiento} pts | Actitud: ${jugador.actitud} pts${jugador.bonificaciones > 0 ? ` | Bonificaciones: ${jugador.bonificaciones} pts` : ""}</div>
       </div>
@@ -305,10 +349,10 @@ function mostrarHistorialCompleto(container) {
   });
   html += `
     <div style="display: flex; gap: 8px; margin-top: 15px; flex-wrap: wrap;">
-      <button class="btn" onclick="exportarDatos()" style="flex: 1; background: #28a745; border-color: #28a745;">📤 Exportar Datos</button>
-      <button class="btn" onclick="importarDatos()" style="flex: 1; background: #17a2b8; border-color: #17a2b8;">📥 Importar Datos</button>
+      <button class="btn" onclick="exportarDatos()" style="flex: 1; background: #28a745; border-color: #28a745;" ${!isAdmin ? 'disabled' : ''}>📤 Exportar Datos</button>
+      <button class="btn" onclick="importarDatos()" style="flex: 1; background: #17a2b8; border-color: #17a2b8;" ${!isAdmin ? 'disabled' : ''}>📥 Importar Datos</button>
     </div>
-    <button class="btn clear-btn" onclick="limpiarTodo()">🗑️ Limpiar Todo</button>
+    <button class="btn clear-btn" onclick="limpiarTodo()" ${!isAdmin ? 'disabled' : ''}>🗑️ Limpiar Todo</button>
   `;
   container.innerHTML = html;
 }
@@ -325,23 +369,32 @@ function mostrarFuncionalidadesAvanzadas(container) {
 
 // Funciones auxiliares
 function toggleHistorialJugador(nombreJugador) {
+  if (!(await checkAuth())) return;
   const id = `historial-${nombreJugador.replace(/\s+/g, "-")}`;
   const elemento = document.getElementById(id);
   elemento.style.display = elemento.style.display === "none" ? "" : "none";
 }
 
 function eliminarPartido(index) {
+  if (!(await checkAuth())) {
+    mostrarNotificacion("Solo el administrador puede eliminar partidos", "error");
+    return;
+  }
   if (confirm("¿Está seguro de eliminar este partido del historial?")) {
     jugadores.splice(index, 1);
-    guardarDatos(); // Sin parámetro, guarda el estado actualizado
+    guardarDatos();
     actualizarResultados();
   }
 }
 
 function limpiarTodo() {
+  if (!(await checkAuth())) {
+    mostrarNotificacion("Solo el administrador puede limpiar el historial", "error");
+    return;
+  }
   if (confirm("¿Está seguro de eliminar todas las calificaciones?")) {
     jugadores = [];
-    guardarDatos(); // Guardar el estado vacío
+    guardarDatos();
     actualizarResultados();
   }
 }
@@ -355,6 +408,10 @@ function getPerformanceIcon(rendimiento) {
 }
 
 function exportarDatos() {
+  if (!(await checkAuth())) {
+    mostrarNotificacion("Solo el administrador puede exportar datos", "error");
+    return;
+  }
   try {
     const datos = { jugadores, fechaExportacion: new Date().toISOString(), totalRegistros: jugadores.length, version: "1.0" };
     const dataStr = JSON.stringify(datos, null, 2);
@@ -372,6 +429,10 @@ function exportarDatos() {
 }
 
 function importarDatos() {
+  if (!(await checkAuth())) {
+    mostrarNotificacion("Solo el administrador puede importar datos", "error");
+    return;
+  }
   const input = document.createElement("input");
   input.type = "file";
   input.accept = ".json";
@@ -385,7 +446,7 @@ function importarDatos() {
           if (datos.jugadores && Array.isArray(datos.jugadores)) {
             if (confirm(`¿Importar ${datos.jugadores.length} registros? Esto se agregará a los datos existentes.`)) {
               jugadores = [...jugadores, ...datos.jugadores];
-              guardarDatos(); // Guardar el estado actualizado
+              guardarDatos();
               mostrarNotificacion(`${datos.jugadores.length} registros importados correctamente`, "success");
               actualizarResultados();
             }
@@ -402,15 +463,6 @@ function importarDatos() {
   };
   input.click();
 }
-
-// Inicializar
-document.addEventListener("DOMContentLoaded", () => {
-  cargarDatos();
-  actualizarResultados();
-  if (jugadores.length > 0) {
-    setTimeout(() => mostrarNotificacion(`Bienvenido de vuelta! ${jugadores.length} registros cargados`, "info"), 1000);
-  }
-});
 
 // Función auxiliar para actualizar botones
 function actualizarVistas() {
