@@ -2,8 +2,8 @@
 const { createClient } = window.supabase;
 
 // Configura las credenciales de Supabase (reemplaza con tus valores reales)
-const supabaseUrl = 'your-supabase-url';
-const supabaseAnonKey = 'your-supabase-anon-key';
+const supabaseUrl = 'https://faaeszqpwybpmsasbywl.supabase.cosupabase-url';
+const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZhYWVzenFwd3licG1zYXNieXdsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTY4NDQzMTksImV4cCI6MjA3MjQyMDMxOX0.WYEykLzGGoQwZ73W7Cbm9lgZRUQSo5bbWWXvLi4uY98';
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 let jugadores = [];
@@ -14,7 +14,7 @@ let isAdmin = false;
 async function checkAuth() {
   const { data: { session }, error } = await supabase.auth.getSession();
   if (error || !session) {
-    console.log('Usuario no autenticado');
+    console.log('Usuario no autenticado6594ad3c-020b-4671-8321-7b60138faedf');
     return false;
   }
   isAdmin = session.user.id === 'your-admin-user-id-here'; // Reemplaza con el user_id del admin
