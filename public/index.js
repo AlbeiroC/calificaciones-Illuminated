@@ -5,6 +5,7 @@ const STORAGE_KEY = "illuminated_fc_data";
 // Cargar datos desde Supabase al iniciar
 async function cargarDatos() {
   try {
+    jugadores = []; // Inicializar como array vacío
     const response = await fetch('/.netlify/functions/cargar-datos');
     if (!response.ok) {
       throw new Error('Error al cargar desde Supabase');
