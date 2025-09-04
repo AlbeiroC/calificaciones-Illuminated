@@ -8,7 +8,6 @@ exports.handler = async function(event, context) {
       throw new Error('Faltan variables de entorno SUPABASE_URL o SUPABASE_KEY');
     }
 
-    // Validar que event.body exista y sea un JSON válido
     if (!event.body) {
       throw new Error('No se proporcionaron datos en el cuerpo de la solicitud');
     }
@@ -17,8 +16,15 @@ exports.handler = async function(event, context) {
       throw new Error('El cuerpo de la solicitud debe contener un array "jugadores"');
     }
 
-    // Iterar y guardar cada jugador
+    console.log('Datos recibidos:', datos.jugadores); // Depuración
+    const savedPlayers = [];
+
     for (const jugador of datos.jugadores) {
+      // Validar campos mínimos
+      if (!jugador.nombre || !jugador.fecha) {
+        throw new Error(`Jugador ${jugador.nombre || 'sin nombre'} falta campo requerido (nombre o fecha)`);
+      }
+
       const response = await fetch(`${SUPABASE_URL}/rest/v1/jugadores`, {
         method: 'POST',
         headers: {
@@ -31,14 +37,17 @@ exports.handler = async function(event, context) {
       });
 
       if (!response.ok) {
-        const errorText = await response.text(); // Obtener detalles del error
+        const errorText = await response.text();
         throw new Error(`Error al guardar jugador ${jugador.nombre}: ${response.status} - ${errorText}`);
       }
+
+      const result = await response.json();
+      savedPlayers.push(result[0]); // Agrega el registro devuelto
     }
 
     return {
       statusCode: 200,
-      body: JSON.stringify({ message: 'Datos guardados correctamente' })
+      body: JSON.stringify({ message: 'Datos guardados correctamente', data: savedPlayers })
     };
   } catch (error) {
     console.error('Error en guardar-datos:', error);
