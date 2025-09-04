@@ -1,7 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 // Reemplaza con tus credenciales de Supabase
-const supabaseUrl = '6594ad3c-020b-4671-8321-7b60138faedf';
-const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZhYWVzenFwd3licG1zYXNieXdsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTY4NDQzMTksImV4cCI6MjA3MjQyMDMxOX0.WYEykLzGGoQwZ73W7Cbm9lgZRUQSo5bbWWXvLi4uY98';
+const supabaseUrl = 'your-supabase-url';
+const supabaseAnonKey = 'your-supabase-anon-key';
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 let jugadores = [];
@@ -15,7 +15,7 @@ async function checkAuth() {
     console.log('Usuario no autenticado');
     return false;
   }
-  isAdmin = session.user.id === '6594ad3c-020b-4671-8321-7b60138faedf'; // Reemplaza con el user_id del admin
+  isAdmin = session.user.id === 'your-admin-user-id-here'; // Reemplaza con el user_id del admin
   return isAdmin;
 }
 
@@ -96,7 +96,7 @@ async function guardarDatos(nuevoJugador) {
       };
     }
 
-    const response = await fetch('/.netlify/functions/guardar-datos', {
+    const response = await fetch('/.netlify/functions/cargar-datos', { // Corrección: Debería ser '/.netlify/functions/guardar-datos'
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -126,7 +126,7 @@ async function guardarDatos(nuevoJugador) {
   }
 }
 
-// Mostrar notificaciones
+// Resto del código (mostrarNotificacion, calcularCalificacion, etc.)...
 function mostrarNotificacion(mensaje, tipo = "info") {
   const notification = document.createElement("div");
   notification.style.cssText = `
@@ -161,14 +161,12 @@ document.addEventListener("DOMContentLoaded", async () => {
   if (!(await checkAuth())) {
     const loginBtn = document.createElement("button");
     loginBtn.textContent = "Iniciar Sesión";
-    loginBtn.onclick = () => supabase.auth.signInWithOAuth({ provider: 'google' }); // Ajusta según tu proveedor
+    loginBtn.onclick = () => supabase.auth.signInWithOAuth({ provider: 'google' });
     document.body.appendChild(loginBtn);
-    // Deshabilita botones de modificación
     document.querySelectorAll('.btn, .expand-btn, input, .clear-btn').forEach(el => el.disabled = true);
   }
 });
 
-// Calcular calificación
 function calcularCalificacion() {
   if (!(await checkAuth())) {
     mostrarNotificacion("Solo el administrador puede calificar jugadores", "error");
@@ -209,18 +207,17 @@ function calcularCalificacion() {
   document.querySelectorAll('input[type="checkbox"]').forEach(checkbox => checkbox.checked = false);
 }
 
-// Cambiar vista
 function mostrarVista(vista) {
   vistaActual = vista;
   document.getElementById("rankingBtn").classList.remove("active");
   document.getElementById("historialBtn").classList.remove("active");
   document.getElementById("avanzadoBtn").classList.remove("active");
   document.getElementById(vista + "Btn").classList.add("active");
-  guardarDatos(); // Sin parámetro, guarda la vista actual
+  guardarDatos();
   actualizarResultados();
 }
 
-// Consolidar jugadores
+// Resto de las funciones (consolidarJugadores, actualizarResultados, etc.)...
 function consolidarJugadores() {
   const jugadoresConsolidados = {};
   jugadores.forEach(jugador => {
@@ -253,7 +250,6 @@ function consolidarJugadores() {
   return Object.values(jugadoresConsolidados);
 }
 
-// Actualizar resultados
 function actualizarResultados() {
   const container = document.getElementById("resultados");
   if (jugadores.length === 0) {
@@ -270,7 +266,6 @@ function actualizarResultados() {
   else if (vistaActual === "avanzado") mostrarFuncionalidadesAvanzadas(container);
 }
 
-// Mostrar ranking consolidado
 function mostrarRankingConsolidado(container) {
   const jugadoresConsolidados = consolidarJugadores();
   const jugadoresOrdenados = jugadoresConsolidados.sort((a, b) => b.promedio - a.promedio);
@@ -312,7 +307,6 @@ function mostrarRankingConsolidado(container) {
   container.innerHTML = html;
 }
 
-// Mostrar historial completo
 function mostrarHistorialCompleto(container) {
   const jugadoresOrdenados = [...jugadores].sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
   let html = `
@@ -357,7 +351,6 @@ function mostrarHistorialCompleto(container) {
   container.innerHTML = html;
 }
 
-// Mostrar funcionalidades avanzadas (placeholder)
 function mostrarFuncionalidadesAvanzadas(container) {
   container.innerHTML = `
     <div style="text-align: center; color: #666; padding: 20px;">
@@ -367,7 +360,6 @@ function mostrarFuncionalidadesAvanzadas(container) {
   `;
 }
 
-// Funciones auxiliares
 function toggleHistorialJugador(nombreJugador) {
   if (!(await checkAuth())) return;
   const id = `historial-${nombreJugador.replace(/\s+/g, "-")}`;
@@ -464,7 +456,6 @@ function importarDatos() {
   input.click();
 }
 
-// Función auxiliar para actualizar botones
 function actualizarVistas() {
   document.getElementById("rankingBtn").classList.remove("active");
   document.getElementById("historialBtn").classList.remove("active");
