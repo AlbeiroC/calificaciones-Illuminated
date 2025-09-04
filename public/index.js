@@ -32,10 +32,10 @@ async function cargarDatos() {
 }
 
 // Guardar datos en Supabase
-async function guardarDatos() {
+async function guardarDatos(nuevoJugador) {
   try {
     const datos = {
-      jugadores: jugadores.map(j => ({ ...j, id: undefined })), // Excluir id para que Supabase lo genere
+      jugadores: [nuevoJugador], // Enviar solo el nuevo jugador
       vistaActual: vistaActual,
       fechaGuardado: new Date().toISOString()
     };
@@ -44,10 +44,18 @@ async function guardarDatos() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(datos)
     });
-    if (!response.ok) throw new Error('Error al guardar en Supabase');
+    if (!response.ok) {
+      const errorText = await response.text(); // Captura el mensaje de error
+      throw new Error(`Error al guardar en Supabase: ${errorText}`);
+    }
     console.log("💾 Datos guardados en Supabase");
     mostrarNotificacion("Datos guardados correctamente", "success");
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(datos)); // Respaldo local
+    // Actualizar localStorage con el estado completo
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({
+      jugadores: jugadores,
+      vistaActual: vistaActual,
+      fechaGuardado: new Date().toISOString()
+    }));
   } catch (error) {
     console.error("❌ Error al guardar datos:", error);
     mostrarNotificacion("Error al guardar en Supabase, usando localStorage.", "error");
@@ -114,9 +122,9 @@ function calcularCalificacion() {
 
   const total = asistencia + rendimiento + actitud + bonificaciones;
   const jugador = { nombre, fecha, asistencia, rendimiento, actitud, bonificaciones, bonificacionesDetalle, total, timestamp: new Date() };
-  jugadores.unshift(jugador);
+  jugadores.unshift(jugador); // Agrega al array global
 
-  guardarDatos();
+  guardarDatos(jugador); // Pasa solo el nuevo jugador
   mostrarNotificacion(`Calificación de ${nombre} guardada correctamente`, "success");
   actualizarResultados();
 
@@ -132,7 +140,7 @@ function mostrarVista(vista) {
   document.getElementById("historialBtn").classList.remove("active");
   document.getElementById("avanzadoBtn").classList.remove("active");
   document.getElementById(vista + "Btn").classList.add("active");
-  guardarDatos();
+  guardarDatos(); // Guardar vista actual (puedes optimizar esto si es innecesario)
   actualizarResultados();
 }
 
@@ -293,7 +301,7 @@ function toggleHistorialJugador(nombreJugador) {
 function eliminarPartido(index) {
   if (confirm("¿Está seguro de eliminar este partido del historial?")) {
     jugadores.splice(index, 1);
-    guardarDatos();
+    guardarDatos(); // Guardar el estado actualizado
     actualizarResultados();
   }
 }
@@ -309,7 +317,7 @@ function getPerformanceIcon(rendimiento) {
 function limpiarTodo() {
   if (confirm("¿Está seguro de eliminar todas las calificaciones?")) {
     jugadores = [];
-    guardarDatos();
+    guardarDatos(); // Guardar el estado vacío
     actualizarResultados();
   }
 }
@@ -345,7 +353,7 @@ function importarDatos() {
           if (datos.jugadores && Array.isArray(datos.jugadores)) {
             if (confirm(`¿Importar ${datos.jugadores.length} registros? Esto se agregará a los datos existentes.`)) {
               jugadores = [...jugadores, ...datos.jugadores];
-              guardarDatos();
+              guardarDatos(); // Guardar el estado actualizado
               mostrarNotificacion(`${datos.jugadores.length} registros importados correctamente`, "success");
               actualizarResultados();
             }
