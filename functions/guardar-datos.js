@@ -8,22 +8,35 @@ exports.handler = async function(event, context) {
       throw new Error('Faltan variables de entorno SUPABASE_URL o SUPABASE_KEY');
     }
 
+    console.log('Raw event.body:', event.body);
     if (!event.body) {
       throw new Error('No se proporcionaron datos en el cuerpo de la solicitud');
     }
     const datos = JSON.parse(event.body);
+    console.log('Parsed datos:', datos);
     if (!datos.jugadores || !Array.isArray(datos.jugadores)) {
       throw new Error('El cuerpo de la solicitud debe contener un array "jugadores"');
     }
 
-    console.log('Datos recibidos:', datos.jugadores); // Depuración
+    console.log('Datos a guardar:', datos.jugadores);
     const savedPlayers = [];
 
     for (const jugador of datos.jugadores) {
-      // Validar campos mínimos
       if (!jugador.nombre || !jugador.fecha) {
         throw new Error(`Jugador ${jugador.nombre || 'sin nombre'} falta campo requerido (nombre o fecha)`);
       }
+
+      // Filtrar solo los campos válidos
+      const jugadorFiltrado = {
+        nombre: jugador.nombre,
+        fecha: jugador.fecha,
+        asistencia: jugador.asistencia,
+        rendimiento: jugador.rendimiento,
+        actitud: jugador.actitud,
+        bonificaciones: jugador.bonificaciones,
+        total: jugador.total,
+        timestamp: jugador.timestamp // Incluye solo si existe en la tabla
+      };
 
       const response = await fetch(`${SUPABASE_URL}/rest/v1/jugadores`, {
         method: 'POST',
@@ -33,7 +46,7 @@ exports.handler = async function(event, context) {
           'apikey': SUPABASE_KEY,
           'Prefer': 'return=representation'
         },
-        body: JSON.stringify(jugador)
+        body: JSON.stringify(jugadorFiltrado)
       });
 
       if (!response.ok) {
@@ -42,7 +55,7 @@ exports.handler = async function(event, context) {
       }
 
       const result = await response.json();
-      savedPlayers.push(result[0]); // Agrega el registro devuelto
+      savedPlayers.push(result[0]);
     }
 
     return {

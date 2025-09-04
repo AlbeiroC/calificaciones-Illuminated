@@ -31,11 +31,21 @@ async function cargarDatos() {
   actualizarResultados();
 }
 
-// Guardar datos en Supabase
 async function guardarDatos(nuevoJugador) {
   try {
+    // Filtrar campos válidos y eliminar bonificacionesDetalle
+    const jugadorFiltrado = {
+      nombre: nuevoJugador.nombre,
+      fecha: nuevoJugador.fecha,
+      asistencia: nuevoJugador.asistencia,
+      rendimiento: nuevoJugador.rendimiento,
+      actitud: nuevoJugador.actitud,
+      bonificaciones: nuevoJugador.bonificaciones,
+      total: nuevoJugador.total,
+      timestamp: nuevoJugador.timestamp // Incluye solo si existe en la tabla
+    };
     const datos = {
-      jugadores: [nuevoJugador], // Enviar solo el nuevo jugador
+      jugadores: [jugadorFiltrado], // Enviar solo el jugador filtrado
       vistaActual: vistaActual,
       fechaGuardado: new Date().toISOString()
     };
