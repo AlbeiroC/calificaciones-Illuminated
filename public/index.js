@@ -33,29 +33,50 @@ async function cargarDatos() {
 
 async function guardarDatos(nuevoJugador) {
   try {
-    // Filtrar campos válidos y eliminar bonificacionesDetalle
-    const jugadorFiltrado = {
-      nombre: nuevoJugador.nombre,
-      fecha: nuevoJugador.fecha,
-      asistencia: nuevoJugador.asistencia,
-      rendimiento: nuevoJugador.rendimiento,
-      actitud: nuevoJugador.actitud,
-      bonificaciones: nuevoJugador.bonificaciones,
-      total: nuevoJugador.total,
-      timestamp: nuevoJugador.timestamp // Incluye solo si existe en la tabla
-    };
-    const datos = {
-      jugadores: [jugadorFiltrado], // Enviar solo el jugador filtrado
-      vistaActual: vistaActual,
-      fechaGuardado: new Date().toISOString()
-    };
+    console.log('Guardando datos - nuevoJugador:', nuevoJugador); // Depuración
+    let datos;
+    if (nuevoJugador) {
+      // Caso 1: Guardar un nuevo jugador
+      const jugadorFiltrado = {
+        nombre: nuevoJugador.nombre,
+        fecha: nuevoJugador.fecha,
+        asistencia: nuevoJugador.asistencia,
+        rendimiento: nuevoJugador.rendimiento,
+        actitud: nuevoJugador.actitud,
+        bonificaciones: nuevoJugador.bonificaciones,
+        total: nuevoJugador.total,
+        timestamp: nuevoJugador.timestamp // Incluye solo si existe en la tabla
+      };
+      datos = {
+        jugadores: [jugadorFiltrado],
+        vistaActual: vistaActual,
+        fechaGuardado: new Date().toISOString()
+      };
+    } else {
+      // Caso 2: Guardar el estado completo de jugadores (para eliminaciones o limpieza)
+      datos = {
+        jugadores: jugadores.map(j => ({
+          nombre: j.nombre,
+          fecha: j.fecha,
+          asistencia: j.asistencia,
+          rendimiento: j.rendimiento,
+          actitud: j.actitud,
+          bonificaciones: j.bonificaciones,
+          total: j.total,
+          timestamp: j.timestamp // Incluye solo si existe en la tabla
+        })),
+        vistaActual: vistaActual,
+        fechaGuardado: new Date().toISOString()
+      };
+    }
+
     const response = await fetch('/.netlify/functions/guardar-datos', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(datos)
     });
     if (!response.ok) {
-      const errorText = await response.text(); // Captura el mensaje de error
+      const errorText = await response.text();
       throw new Error(`Error al guardar en Supabase: ${errorText}`);
     }
     console.log("💾 Datos guardados en Supabase");
@@ -150,7 +171,7 @@ function mostrarVista(vista) {
   document.getElementById("historialBtn").classList.remove("active");
   document.getElementById("avanzadoBtn").classList.remove("active");
   document.getElementById(vista + "Btn").classList.add("active");
-  guardarDatos(); // Guardar vista actual (puedes optimizar esto si es innecesario)
+  guardarDatos(); // Sin parámetro, guarda la vista actual
   actualizarResultados();
 }
 
@@ -311,7 +332,15 @@ function toggleHistorialJugador(nombreJugador) {
 function eliminarPartido(index) {
   if (confirm("¿Está seguro de eliminar este partido del historial?")) {
     jugadores.splice(index, 1);
-    guardarDatos(); // Guardar el estado actualizado
+    guardarDatos(); // Sin parámetro, guarda el estado actualizado
+    actualizarResultados();
+  }
+}
+
+function limpiarTodo() {
+  if (confirm("¿Está seguro de eliminar todas las calificaciones?")) {
+    jugadores = [];
+    guardarDatos(); // Guardar el estado vacío
     actualizarResultados();
   }
 }
@@ -322,14 +351,6 @@ function getPerformanceClass(rendimiento) {
 
 function getPerformanceIcon(rendimiento) {
   return rendimiento === 5 ? "⭐" : rendimiento === 4 ? "🔥" : rendimiento === 3 ? "✅" : rendimiento === 2 ? "⚠️" : "❌";
-}
-
-function limpiarTodo() {
-  if (confirm("¿Está seguro de eliminar todas las calificaciones?")) {
-    jugadores = [];
-    guardarDatos(); // Guardar el estado vacío
-    actualizarResultados();
-  }
 }
 
 function exportarDatos() {
