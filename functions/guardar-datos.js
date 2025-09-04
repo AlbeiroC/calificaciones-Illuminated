@@ -3,7 +3,7 @@ const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseKey = process.env.SUPABASE_KEY;
 const supabase = createClient(supabaseUrl, supabaseKey);
 
-// ID del usuario autorizado (reemplaza con el user_id del admin)
+// ID del usuario autorizado (reemplaza con el user_id del admin si es diferente)
 const ALLOWED_USER_ID = '6594ad3c-020b-4671-8321-7b60138faedf';
 
 exports.handler = async (event) => {
@@ -35,18 +35,24 @@ exports.handler = async (event) => {
   try {
     const { jugadores, vistaActual } = JSON.parse(event.body);
 
+    if (!Array.isArray(jugadores)) {
+      throw new Error('El campo "jugadores" debe ser un array');
+    }
+
+    const dataToInsert = jugadores.map(jugador => ({
+      nombre: jugador.nombre,
+      fecha: jugador.fecha,
+      asistencia: jugador.asistencia,
+      rendimiento: jugador.rendimiento,
+      actitud: jugador.actitud,
+      bonificaciones: jugador.bonificaciones,
+      total: jugador.total,
+      timestamp: jugador.timestamp || new Date().toISOString(),
+    }));
+
     const { error } = await supabase
       .from('jugadores')
-      .insert(jugadores.map(jugador => ({
-        nombre: jugador.nombre,
-        fecha: jugador.fecha,
-        asistencia: jugador.asistencia,
-        rendimiento: jugador.rendimiento,
-        actitud: jugador.actitud,
-        bonificaciones: jugador.bonificaciones,
-        total: jugador.total,
-        timestamp: jugador.timestamp || new Date().toISOString(),
-      })));
+      .upsert(dataToInsert, { onConflict: ['nombre', 'fecha'] }); // Evita duplicados basados en nombre y fecha
 
     if (error) throw error;
 
@@ -58,7 +64,7 @@ exports.handler = async (event) => {
     console.error('Error al guardar datos:', error);
     return {
       statusCode: 500,
-      body: JSON.stringify({ error: 'Error interno al guardar datos' }),
+      body: JSON.stringify({ error: error.message || 'Error interno al guardar datos' }),
     };
   }
 };
