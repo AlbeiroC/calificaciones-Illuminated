@@ -1,8 +1,8 @@
 import { createClient } from '@supabase/supabase-js';
 
 // Configura las credenciales de Supabase (reemplaza con tus valores reales)
-const supabaseUrl = 'https://faaeszqpwybpmsasbywl.supabase.co';
-const supabaseAnonKey = 'your-supabase-anon-keyeyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZhYWVzenFwd3licG1zYXNieXdsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTY4NDQzMTksImV4cCI6MjA3MjQyMDMxOX0.WYEykLzGGoQwZ73W7Cbm9lgZRUQSo5bbWWXvLi4uY98';
+const supabaseUrl = 'your-supabase-url';
+const supabaseAnonKey = 'your-supabase-anon-key';
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 let jugadores = [];
@@ -16,7 +16,7 @@ async function checkAuth() {
     console.log('Usuario no autenticado');
     return false;
   }
-  isAdmin = session.user.id === '6594ad3c-020b-4671-8321-7b60138faedf'; // Reemplaza con el user_id del admin
+  isAdmin = session.user.id === 'your-admin-user-id-here'; // Reemplaza con el user_id del admin
   return isAdmin;
 }
 
@@ -25,10 +25,15 @@ async function cargarDatos() {
     jugadores = [];
     const isAuthenticated = await checkAuth();
     if (!isAuthenticated) throw new Error('Usuario no autorizado');
+
+    const { data: { session } } = await supabase.auth.getSession();
+    const token = session.access_token;
+
     const response = await fetch('/.netlify/functions/cargar-datos', {
-      headers: { Authorization: `Bearer ${await supabase.auth.getSession().then(s => s.data.session.access_token)}` },
+      headers: { Authorization: `Bearer ${token}` },
     });
     if (!response.ok) throw new Error('Error al cargar desde Supabase');
+
     const datos = await response.json();
     jugadores = datos.jugadores || [];
     vistaActual = datos.vistaActual || 'ranking';
@@ -91,11 +96,14 @@ async function guardarDatos(nuevoJugador) {
           fechaGuardado: new Date().toISOString(),
         };
 
+    const { data: { session } } = await supabase.auth.getSession();
+    const token = session.access_token;
+
     const response = await fetch('/.netlify/functions/guardar-datos', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${await supabase.auth.getSession().then(s => s.data.session.access_token)}`,
+        Authorization: `Bearer ${token}`,
       },
       body: JSON.stringify(datos),
     });
@@ -153,10 +161,16 @@ document.addEventListener('DOMContentLoaded', async () => {
   if (!(await checkAuth())) {
     const loginBtn = document.createElement('button');
     loginBtn.textContent = 'Iniciar Sesión';
-    loginBtn.onclick = () => supabase.auth.signInWithOAuth({ provider: 'google' });
+    loginBtn.addEventListener('click', () => supabase.auth.signInWithOAuth({ provider: 'google' }));
     document.body.appendChild(loginBtn);
     document.querySelectorAll('.btn, .expand-btn, input, .clear-btn').forEach(el => (el.disabled = true));
   }
+
+  // Listeners para botones
+  document.querySelector('.calculate-btn')?.addEventListener('click', calcularCalificacion);
+  document.querySelector('#rankingBtn')?.addEventListener('click', () => mostrarVista('ranking'));
+  document.querySelector('#historialBtn')?.addEventListener('click', () => mostrarVista('historial'));
+  document.querySelector('#avanzadoBtn')?.addEventListener('click', () => mostrarVista('avanzado'));
 });
 
 async function calcularCalificacion() {
@@ -285,20 +299,20 @@ function mostrarRankingConsolidado(container) {
         <td>${jugador.totalPartidos}</td>
         <td style="color: #51cf66; font-weight: bold;">${jugador.mejorPartido}</td>
         <td>${jugador.ultimaFecha.toLocaleDateString('es-ES')}</td>
-        <td><button class="expand-btn" onclick="toggleHistorialJugador('${jugador.nombre}')" ${!isAdmin ? 'disabled' : ''}>Ver Historial</button></td>
+        <td><button class="expand-btn" data-player="${jugador.nombre}" ${!isAdmin ? 'disabled' : ''}>Ver Historial</button></td>
       </tr>
       <tr id="historial-${jugador.nombre.replace(/\s+/g, '-')}" style="display: none;"><td colspan="7"><div class="player-history"><h4 style="margin-bottom: 8px; color: #000;">Historial de ${jugador.nombre}</h4>${jugador.partidos
         .map(
           (partido, idx) => `
         <div class="history-item">
           <div><strong>${new Date(partido.fecha).toLocaleDateString('es-ES')}</strong> - ${partido.total} pts (A:${partido.asistencia} | R:${partido.rendimiento} | C:${partido.actitud}${partido.bonificaciones > 0 ? ` | B:${partido.bonificaciones}` : ''})</div>
-          <button onclick="eliminarPartido(${jugadores.indexOf(partido)})" style="background: #dc3545; color: white; border: none; border-radius: 4px; padding: 2px 6px; cursor: pointer; font-size: 10px;" ${!isAdmin ? 'disabled' : ''}>Eliminar</button>
+          <button data-index="${jugadores.indexOf(partido)}" style="background: #dc3545; color: white; border: none; border-radius: 4px; padding: 2px 6px; cursor: pointer; font-size: 10px;" ${!isAdmin ? 'disabled' : ''}>Eliminar</button>
         </div>`
         )
         .join('')}</div></td></tr>
     `;
   });
-  html += `</tbody></table><div style="display: flex; gap: 8px; margin-top: 15px; flex-wrap: wrap;"><button class="btn" onclick="exportarDatos()" style="flex: 1; background: #28a745; border-color: #28a745;" ${!isAdmin ? 'disabled' : ''}>📤 Exportar Datos</button><button class="btn" onclick="importarDatos()" style="flex: 1; background: #17a2b8; border-color: #17a2b8;" ${!isAdmin ? 'disabled' : ''}>📥 Importar Datos</button></div><button class="btn clear-btn" onclick="limpiarTodo()" ${!isAdmin ? 'disabled' : ''}>🗑️ Limpiar Todo el Historial</button>`;
+  html += `</tbody></table><div style="display: flex; gap: 8px; margin-top: 15px; flex-wrap: wrap;"><button class="btn" data-action="export" style="flex: 1; background: #28a745; border-color: #28a745;" ${!isAdmin ? 'disabled' : ''}>📤 Exportar Datos</button><button class="btn" data-action="import" style="flex: 1; background: #17a2b8; border-color: #17a2b8;" ${!isAdmin ? 'disabled' : ''}>📥 Importar Datos</button></div><button class="btn clear-btn" data-action="clear" ${!isAdmin ? 'disabled' : ''}>🗑️ Limpiar Todo el Historial</button>`;
   container.innerHTML = html;
 }
 
@@ -330,7 +344,7 @@ function mostrarHistorialCompleto(container) {
               <div style="margin-left: 8px; font-size: 0.85rem; color: #666;">${new Date(jugador.fecha).toLocaleDateString('es-ES')}</div>
             </div>
           </div>
-          <button onclick="eliminarPartido(${originalIndex})" style="background: #dc3545; color: white; border: none; border-radius: 50%; width: 25px; height: 25px; cursor: pointer; font-size: 14px; margin-left: 8px;" ${!isAdmin ? 'disabled' : ''}>×</button>
+          <button data-index="${originalIndex}" style="background: #dc3545; color: white; border: none; border-radius: 50%; width: 25px; height: 25px; cursor: pointer; font-size: 14px; margin-left: 8px;" ${!isAdmin ? 'disabled' : ''}>×</button>
         </div>
         <div class="score-breakdown"><strong>Desglose:</strong><br>Asistencia: ${jugador.asistencia} pts | Rendimiento: ${jugador.rendimiento} pts | Actitud: ${jugador.actitud} pts${jugador.bonificaciones > 0 ? ` | Bonificaciones: ${jugador.bonificaciones} pts` : ''}</div>
       </div>
@@ -338,10 +352,10 @@ function mostrarHistorialCompleto(container) {
   });
   html += `
     <div style="display: flex; gap: 8px; margin-top: 15px; flex-wrap: wrap;">
-      <button class="btn" onclick="exportarDatos()" style="flex: 1; background: #28a745; border-color: #28a745;" ${!isAdmin ? 'disabled' : ''}>📤 Exportar Datos</button>
-      <button class="btn" onclick="importarDatos()" style="flex: 1; background: #17a2b8; border-color: #17a2b8;" ${!isAdmin ? 'disabled' : ''}>📥 Importar Datos</button>
+      <button class="btn" data-action="export" style="flex: 1; background: #28a745; border-color: #28a745;" ${!isAdmin ? 'disabled' : ''}>📤 Exportar Datos</button>
+      <button class="btn" data-action="import" style="flex: 1; background: #17a2b8; border-color: #17a2b8;" ${!isAdmin ? 'disabled' : ''}>📥 Importar Datos</button>
     </div>
-    <button class="btn clear-btn" onclick="limpiarTodo()" ${!isAdmin ? 'disabled' : ''}>🗑️ Limpiar Todo</button>
+    <button class="btn clear-btn" data-action="clear" ${!isAdmin ? 'disabled' : ''}>🗑️ Limpiar Todo</button>
   `;
   container.innerHTML = html;
 }
@@ -355,14 +369,14 @@ function mostrarFuncionalidadesAvanzadas(container) {
   `;
 }
 
-function toggleHistorialJugador(nombreJugador) {
+async function toggleHistorialJugador(nombreJugador) {
   if (!(await checkAuth())) return;
   const id = `historial-${nombreJugador.replace(/\s+/g, '-')}`;
   const elemento = document.getElementById(id);
   elemento.style.display = elemento.style.display === 'none' ? '' : 'none';
 }
 
-function eliminarPartido(index) {
+async function eliminarPartido(index) {
   if (!(await checkAuth())) {
     mostrarNotificacion('Solo el administrador puede eliminar partidos', 'error');
     return;
@@ -374,9 +388,9 @@ function eliminarPartido(index) {
   }
 }
 
-function limpiarTodo() {
+async function limpiarTodo() {
   if (!(await checkAuth())) {
-    mostrarNotificacion('Solo el administrador puede limpiar el histial', 'error');
+    mostrarNotificacion('Solo el administrador puede limpiar el historial', 'error');
     return;
   }
   if (confirm('¿Está seguro de eliminar todas las calificaciones?')) {
@@ -394,7 +408,7 @@ function getPerformanceIcon(rendimiento) {
   return rendimiento === 5 ? '⭐' : rendimiento === 4 ? '🔥' : rendimiento === 3 ? '✅' : rendimiento === 2 ? '⚠️' : '❌';
 }
 
-function exportarDatos() {
+async function exportarDatos() {
   if (!(await checkAuth())) {
     mostrarNotificacion('Solo el administrador puede exportar datos', 'error');
     return;
@@ -415,7 +429,7 @@ function exportarDatos() {
   }
 }
 
-function importarDatos() {
+async function importarDatos() {
   if (!(await checkAuth())) {
     mostrarNotificacion('Solo el administrador puede importar datos', 'error');
     return;
@@ -457,3 +471,19 @@ function actualizarVistas() {
   document.getElementById('avanzadoBtn').classList.remove('active');
   document.getElementById(vistaActual + 'Btn').classList.add('active');
 }
+
+// Delegación de eventos para botones dinámicos
+document.addEventListener('click', async (e) => {
+  const target = e.target;
+  if (target.classList.contains('expand-btn')) {
+    await toggleHistorialJugador(target.dataset.player);
+  } else if (target.dataset.action === 'export') {
+    await exportarDatos();
+  } else if (target.dataset.action === 'import') {
+    await importarDatos();
+  } else if (target.dataset.action === 'clear') {
+    await limpiarTodo();
+  } else if (target.dataset.index !== undefined) {
+    await eliminarPartido(parseInt(target.dataset.index));
+  }
+});
