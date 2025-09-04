@@ -2,9 +2,13 @@
 const { createClient } = window.supabase;
 
 // Configura las credenciales de Supabase (reemplaza con tus valores reales)
-const supabaseUrl = 'https://faaeszqpwybpmsasbywl.supabase.cosupabase-url';
-const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZhYWVzenFwd3licG1zYXNieXdsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTY4NDQzMTksImV4cCI6MjA3MjQyMDMxOX0.WYEykLzGGoQwZ73W7Cbm9lgZRUQSo5bbWWXvLi4uY98';
+const supabaseUrl = 'https://faaeszqpwybpmsasbywl.supabase.co'; // Asegúrate de reemplazar esto
+const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZhYWVzenFwd3licG1zYXNieXdsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTY4NDQzMTksImV4cCI6MjA3MjQyMDMxOX0.WYEykLzGGoQwZ73W7Cbm9lgZRUQSo5bbWWXvLi4uY98r'; // Asegúrate de reemplazar esto
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
+
+// Detectar si estamos en Netlify (producción) o local
+const isNetlify = window.location.hostname.includes('netlify.app') || window.location.hostname.includes('localhost') === false;
+const functionBaseUrl = isNetlify ? '/.netlify/functions' : 'http://localhost:8888/.netlify/functions'; // Ajusta el puerto si usas otro en local
 
 let jugadores = [];
 let vistaActual = 'ranking';
@@ -12,13 +16,23 @@ const STORAGE_KEY = 'illuminated_fc_data';
 let isAdmin = false;
 
 async function checkAuth() {
-  const { data: { session }, error } = await supabase.auth.getSession();
-  if (error || !session) {
-    console.log('Usuario no autenticado6594ad3c-020b-4671-8321-7b60138faedf');
+  try {
+    const { data: { session }, error } = await supabase.auth.getSession();
+    if (error || !session) {
+      console.log('Usuario no autenticado, intentando refrescar sesión...');
+      const { data, error: refreshError } = await supabase.auth.refreshSession();
+      if (refreshError || !data.session) {
+        console.log('No se pudo refrescar la sesión:', refreshError?.message || 'Sin sesión activa');
+        return false;
+      }
+      console.log('Sesión refrescada con éxito');
+    }
+    isAdmin = session.user.id === '6594ad3c-020b-4671-8321-7b60138faedf'; // Reemplaza con el user_id real del administrador
+    return isAdmin;
+  } catch (error) {
+    console.error('Error en autenticación:', error);
     return false;
   }
-  isAdmin = session.user.id === 'your-admin-user-id-here'; // Reemplaza con el user_id del admin
-  return isAdmin;
 }
 
 async function cargarDatos() {
@@ -30,7 +44,7 @@ async function cargarDatos() {
     const { data: { session } } = await supabase.auth.getSession();
     const token = session.access_token;
 
-    const response = await fetch('/.netlify/functions/cargar-datos', {
+    const response = await fetch(`${functionBaseUrl}/cargar-datos`, {
       headers: { Authorization: `Bearer ${token}` },
     });
     if (!response.ok) throw new Error('Error al cargar desde Supabase');
@@ -100,7 +114,7 @@ async function guardarDatos(nuevoJugador) {
     const { data: { session } } = await supabase.auth.getSession();
     const token = session.access_token;
 
-    const response = await fetch('/.netlify/functions/guardar-datos', {
+    const response = await fetch(`${functionBaseUrl}/guardar-datos`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -161,10 +175,20 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
   if (!(await checkAuth())) {
     const loginBtn = document.createElement('button');
-    loginBtn.textContent = 'Iniciar Sesión';
-    loginBtn.addEventListener('click', () => supabase.auth.signInWithOAuth({ provider: 'google' }));
+    loginBtn.textContent = 'Iniciar Sesión con Google';
+    loginBtn.style.cssText = 'padding: 8px 16px; background: #4285f4; color: white; border: none; border-radius: 4px; cursor: pointer; margin: 10px;';
+    loginBtn.addEventListener('click', () => {
+      supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: window.location.origin, // Redirige de vuelta a la página actual tras login
+        },
+      });
+    });
     document.body.appendChild(loginBtn);
     document.querySelectorAll('.btn, .expand-btn, input, .clear-btn').forEach(el => (el.disabled = true));
+  } else {
+    console.log('Usuario autenticado con ID:', supabase.auth.getSession().data.session.user.id);
   }
 
   // Listeners para botones
