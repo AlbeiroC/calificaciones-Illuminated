@@ -21,8 +21,8 @@ supabase.auth.onAuthStateChange((event, session) => {
     console.log('Usuario autenticado con ID:', session.user.id);
     isAdmin = session.user.id === 'your-admin-user-id-here'; // Reemplaza con el user_id real del administrador
     cargarDatos(); // Recargar datos tras login
-    if (document.querySelector('button#loginBtn')) {
-      document.querySelector('button#loginBtn').remove();
+    if (document.querySelector('div#loginDiv')) {
+      document.querySelector('div#loginDiv').remove();
       document.querySelectorAll('.btn, .expand-btn, input, .clear-btn').forEach(el => (el.disabled = false));
     }
   } else if (event === 'SIGNED_OUT') {
@@ -196,19 +196,34 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Verificar estado de autenticación al cargar
   const { data: { session } } = await supabase.auth.getSession();
   if (!session) {
-    const loginBtn = document.createElement('button');
-    loginBtn.id = 'loginBtn';
-    loginBtn.textContent = 'Iniciar Sesión con Google';
-    loginBtn.style.cssText = 'padding: 8px 16px; background: #4285f4; color: white; border: none; border-radius: 4px; cursor: pointer; margin: 10px;';
-    loginBtn.addEventListener('click', () => {
-      supabase.auth.signInWithOAuth({
-        provider: 'google',
-        options: {
-          redirectTo: window.location.origin, // Redirige de vuelta a la página actual tras login
-        },
-      });
+    // Crear formulario de login
+    const loginDiv = document.createElement('div');
+    loginDiv.id = 'loginDiv';
+    loginDiv.style.cssText = 'position: fixed; top: 20px; right: 20px; padding: 20px; background: #fff; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); z-index: 1000;';
+    loginDiv.innerHTML = `
+      <h3>Iniciar Sesión</h3>
+      <input type="email" id="email" placeholder="Correo electrónico" style="width: 200px; padding: 5px; margin: 5px 0;">
+      <input type="password" id="password" placeholder="Contraseña" style="width: 200px; padding: 5px; margin: 5px 0;">
+      <button id="loginBtn" style="padding: 5px 10px; background: #4285f4; color: white; border: none; border-radius: 4px; cursor: pointer;">Iniciar Sesión</button>
+      <button id="signupBtn" style="padding: 5px 10px; background: #34a853; color: white; border: none; border-radius: 4px; cursor: pointer; margin-left: 5px;">Registrarse</button>
+    `;
+    document.body.appendChild(loginDiv);
+
+    document.getElementById('loginBtn').addEventListener('click', async () => {
+      const email = document.getElementById('email').value;
+      const password = document.getElementById('password').value;
+      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      if (error) mostrarNotificacion(`Error: ${error.message}`, 'error');
     });
-    document.body.appendChild(loginBtn);
+
+    document.getElementById('signupBtn').addEventListener('click', async () => {
+      const email = document.getElementById('email').value;
+      const password = document.getElementById('password').value;
+      const { error } = await supabase.auth.signUp({ email, password });
+      if (error) mostrarNotificacion(`Error: ${error.message}`, 'error');
+      else mostrarNotificacion('Registro exitoso, verifica tu correo si es necesario.', 'success');
+    });
+
     document.querySelectorAll('.btn, .expand-btn, input, .clear-btn').forEach(el => (el.disabled = true));
   } else {
     console.log('Usuario autenticado con ID:', session.user.id);
