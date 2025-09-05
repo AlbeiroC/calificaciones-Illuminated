@@ -24,7 +24,7 @@ supabase.auth.onAuthStateChange((event, session) => {
     cargarDatos();
     if (document.querySelector('div#loginDiv')) {
       document.querySelector('div#loginDiv').remove();
-      document.querySelectorAll('.btn, .expand-btn, input, .clear-btn').forEach(el => (el.disabled = false));
+      document.querySelectorAll('.btn, .expand-btn, .clear-btn').forEach(el => (el.disabled = false)); // Excluir inputs
     }
   } else if (event === 'SIGNED_OUT') {
     console.log('Usuario desautenticado');
@@ -253,7 +253,8 @@ document.addEventListener('DOMContentLoaded', async () => {
       else mostrarNotificacion('Registro exitoso, verifica tu correo si es necesario.', 'success');
     });
 
-    document.querySelectorAll('.btn, .expand-btn, input, .clear-btn').forEach(el => (el.disabled = true));
+    // No desactivar los inputs del formulario, solo los botones principales
+    document.querySelectorAll('.calculate-btn, .expand-btn, .clear-btn').forEach(el => (el.disabled = true));
   } else {
     console.log('Usuario autenticado con ID:', session.user.id);
     isAdmin = session.user.id === 'your-admin-user-id-here'; // Reemplaza con el user_id real del administrador
