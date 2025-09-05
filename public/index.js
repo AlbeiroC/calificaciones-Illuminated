@@ -17,7 +17,7 @@ let isAdmin = false;
 
 // Escuchar cambios en la autenticación
 supabase.auth.onAuthStateChange((event, session) => {
-  console.log('Auth state changed:', event, session ? 'Sesión encontrada' : 'Sin sesión');
+  console.log('Auth state changed:', event, session ? `Sesión encontrada con ID: ${session.user.id}` : 'Sin sesión');
   if (event === 'SIGNED_IN' && session) {
     console.log('Usuario autenticado con ID:', session.user.id);
     isAdmin = session.user.id === 'your-admin-user-id-here'; // Reemplaza con el user_id real del administrador
@@ -77,6 +77,7 @@ async function cargarDatos() {
 
     const { data: { session } } = await supabase.auth.getSession();
     const token = session.access_token;
+    console.log('Token de sesión:', token);
 
     const response = await fetch(`${functionBaseUrl}/cargar-datos`, {
       headers: { Authorization: `Bearer ${token}` },
@@ -108,6 +109,7 @@ async function cargarDatos() {
 async function guardarDatos(nuevoJugador) {
   try {
     const { authenticated, isAdmin: isCurrentAdmin } = await checkAuth();
+    console.log('guardarDatos - Autenticado:', authenticated, 'Es admin:', isCurrentAdmin);
     if (!authenticated) {
       mostrarNotificacion('No autorizado para guardar datos', 'error');
       return;
@@ -236,7 +238,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         return;
       }
       console.log('Intentando iniciar sesión con:', email);
-      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+      console.log('Resultado de signIn:', data, 'Error:', error);
       if (error) mostrarNotificacion(`Error: ${error.message}`, 'error');
     });
 
@@ -248,7 +251,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         return;
       }
       console.log('Intentando registrarse con:', email);
-      const { error } = await supabase.auth.signUp({ email, password });
+      const { data, error } = await supabase.auth.signUp({ email, password });
+      console.log('Resultado de signUp:', data, 'Error:', error);
       if (error) mostrarNotificacion(`Error: ${error.message}`, 'error');
       else mostrarNotificacion('Registro exitoso, verifica tu correo si es necesario.', 'success');
     });
@@ -258,7 +262,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   } else {
     console.log('Usuario autenticado con ID:', session.user.id);
     isAdmin = session.user.id === 'your-admin-user-id-here'; // Reemplaza con el user_id real del administrador
-    document.querySelectorAll('.btn, .expand-btn, input, .clear-btn').forEach(el => (el.disabled = false));
+    document.querySelectorAll('.btn, .expand-btn, .clear-btn').forEach(el => (el.disabled = false)); // Excluir inputs
   }
 
   // Listeners para botones
