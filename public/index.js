@@ -2,13 +2,13 @@
 const { createClient } = window.supabase;
 
 // Configura las credenciales de Supabase (reemplaza con tus valores reales)
-const supabaseUrl = 'https://faaeszqpwybpmsasbywl.supabase.co'; // Asegúrate de reemplazar esto
-const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZhYWVzenFwd3licG1zYXNieXdsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTY4NDQzMTksImV4cCI6MjA3MjQyMDMxOX0.WYEykLzGGoQwZ73W7Cbm9lgZRUQSo5bbWWXvLi4uY98'; // Asegúrate de reemplazar esto
+const supabaseUrl = 'https://faaeszqpwybpmsasbywl.supabase.co';
+const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZhYWVzenFwd3licG1zYXNieXdsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTY4NDQzMTksImV4cCI6MjA3MjQyMDMxOX0.WYEykLzGGoQwZ73W7Cbm9lgZRUQSo5bbWWXvLi4uY98';
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 // Detectar si estamos en Netlify (producción) o local
 const isNetlify = window.location.hostname.includes('netlify.app') || window.location.hostname.includes('localhost') === false;
-const functionBaseUrl = isNetlify ? '/.netlify/functions' : 'http://localhost:8888/.netlify/functions'; // Ajusta el puerto si usas otro en local
+const functionBaseUrl = isNetlify ? '/.netlify/functions' : 'http://localhost:8888/.netlify/functions';
 
 let jugadores = [];
 let vistaActual = 'ranking';
@@ -20,7 +20,7 @@ supabase.auth.onAuthStateChange((event, session) => {
   if (event === 'SIGNED_IN' && session) {
     console.log('Usuario autenticado con ID:', session.user.id);
     isAdmin = session.user.id === 'your-admin-user-id-here'; // Reemplaza con el user_id real del administrador
-    cargarDatos(); // Recargar datos tras login
+    cargarDatos();
     if (document.querySelector('div#loginDiv')) {
       document.querySelector('div#loginDiv').remove();
       document.querySelectorAll('.btn, .expand-btn, input, .clear-btn').forEach(el => (el.disabled = false));
@@ -42,23 +42,35 @@ async function checkAuth() {
       const { data, error: refreshError } = await supabase.auth.refreshSession();
       if (refreshError || !data.session) {
         console.log('No se pudo refrescar la sesión:', refreshError?.message || 'Sin sesión activa');
-        return false;
+        return { authenticated: false, isAdmin: false };
       }
       console.log('Sesión refrescada con éxito');
     }
-    isAdmin = session.user.id === 'your-admin-user-id-here'; // Reemplaza con el user_id real del administrador
-    return isAdmin;
+    const adminCheck = session.user.id === 'your-admin-user-id-here'; // Reemplaza con el user_id real del administrador
+    return { authenticated: true, isAdmin: adminCheck };
   } catch (error) {
     console.error('Error en autenticación:', error);
-    return false;
+    return { authenticated: false, isAdmin: false };
   }
 }
 
 async function cargarDatos() {
   try {
-    jugadores = [];
-    const isAuthenticated = await checkAuth();
-    if (!isAuthenticated) throw new Error('Usuario no autorizado');
+    const { authenticated } = await checkAuth();
+    if (!authenticated) {
+      console.log('Cargando datos sin autenticación, usando localStorage.');
+      const datosGuardados = localStorage.getItem(STORAGE_KEY);
+      if (datosGuardados) {
+        const datos = JSON.parse(datosGuardados);
+        jugadores = datos.jugadores || [];
+        vistaActual = datos.vistaActual || 'ranking';
+        console.log(`✅ Datos cargados desde localStorage: ${jugadores.length} registros`);
+      } else {
+        console.log('ℹ️ No se encontraron datos previos');
+        jugadores = [];
+      }
+      return;
+    }
 
     const { data: { session } } = await supabase.auth.getSession();
     const token = session.access_token;
@@ -92,8 +104,8 @@ async function cargarDatos() {
 
 async function guardarDatos(nuevoJugador) {
   try {
-    const isAuthenticated = await checkAuth();
-    if (!isAuthenticated) {
+    const { authenticated, isAdmin: isCurrentAdmin } = await checkAuth();
+    if (!authenticated) {
       mostrarNotificacion('No autorizado para guardar datos', 'error');
       return;
     }
@@ -202,23 +214,31 @@ document.addEventListener('DOMContentLoaded', async () => {
     loginDiv.style.cssText = 'position: fixed; top: 20px; right: 20px; padding: 20px; background: #fff; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); z-index: 1000;';
     loginDiv.innerHTML = `
       <h3>Iniciar Sesión</h3>
-      <input type="email" id="email" placeholder="Correo electrónico" style="width: 200px; padding: 5px; margin: 5px 0;">
-      <input type="password" id="password" placeholder="Contraseña" style="width: 200px; padding: 5px; margin: 5px 0;">
+      <input type="email" id="email" placeholder="Correo electrónico" style="width: 200px; padding: 5px; margin: 5px 0;" required>
+      <input type="password" id="password" placeholder="Contraseña" style="width: 200px; padding: 5px; margin: 5px 0;" required minlength="6">
       <button id="loginBtn" style="padding: 5px 10px; background: #4285f4; color: white; border: none; border-radius: 4px; cursor: pointer;">Iniciar Sesión</button>
       <button id="signupBtn" style="padding: 5px 10px; background: #34a853; color: white; border: none; border-radius: 4px; cursor: pointer; margin-left: 5px;">Registrarse</button>
     `;
     document.body.appendChild(loginDiv);
 
     document.getElementById('loginBtn').addEventListener('click', async () => {
-      const email = document.getElementById('email').value;
+      const email = document.getElementById('email').value.trim();
       const password = document.getElementById('password').value;
+      if (!email || !password) {
+        mostrarNotificacion('Por favor, completa todos los campos.', 'error');
+        return;
+      }
       const { error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) mostrarNotificacion(`Error: ${error.message}`, 'error');
     });
 
     document.getElementById('signupBtn').addEventListener('click', async () => {
-      const email = document.getElementById('email').value;
+      const email = document.getElementById('email').value.trim();
       const password = document.getElementById('password').value;
+      if (!email || !password || password.length < 6) {
+        mostrarNotificacion('El email y la contraseña (mínimo 6 caracteres) son obligatorios.', 'error');
+        return;
+      }
       const { error } = await supabase.auth.signUp({ email, password });
       if (error) mostrarNotificacion(`Error: ${error.message}`, 'error');
       else mostrarNotificacion('Registro exitoso, verifica tu correo si es necesario.', 'success');
@@ -435,14 +455,15 @@ function mostrarFuncionalidadesAvanzadas(container) {
 }
 
 async function toggleHistorialJugador(nombreJugador) {
-  if (!(await checkAuth())) return;
+  if (!(await checkAuth()).authenticated) return;
   const id = `historial-${nombreJugador.replace(/\s+/g, '-')}`;
   const elemento = document.getElementById(id);
   elemento.style.display = elemento.style.display === 'none' ? '' : 'none';
 }
 
 async function eliminarPartido(index) {
-  if (!(await checkAuth())) {
+  const { authenticated, isAdmin: isCurrentAdmin } = await checkAuth();
+  if (!authenticated || !isCurrentAdmin) {
     mostrarNotificacion('Solo el administrador puede eliminar partidos', 'error');
     return;
   }
@@ -454,7 +475,8 @@ async function eliminarPartido(index) {
 }
 
 async function limpiarTodo() {
-  if (!(await checkAuth())) {
+  const { authenticated, isAdmin: isCurrentAdmin } = await checkAuth();
+  if (!authenticated || !isCurrentAdmin) {
     mostrarNotificacion('Solo el administrador puede limpiar el historial', 'error');
     return;
   }
@@ -474,7 +496,8 @@ function getPerformanceIcon(rendimiento) {
 }
 
 async function exportarDatos() {
-  if (!(await checkAuth())) {
+  const { authenticated, isAdmin: isCurrentAdmin } = await checkAuth();
+  if (!authenticated || !isCurrentAdmin) {
     mostrarNotificacion('Solo el administrador puede exportar datos', 'error');
     return;
   }
@@ -495,7 +518,8 @@ async function exportarDatos() {
 }
 
 async function importarDatos() {
-  if (!(await checkAuth())) {
+  const { authenticated, isAdmin: isCurrentAdmin } = await checkAuth();
+  if (!authenticated || !isCurrentAdmin) {
     mostrarNotificacion('Solo el administrador puede importar datos', 'error');
     return;
   }
