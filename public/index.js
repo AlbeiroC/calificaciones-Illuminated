@@ -17,6 +17,7 @@ let isAdmin = false;
 
 // Escuchar cambios en la autenticación
 supabase.auth.onAuthStateChange((event, session) => {
+  console.log('Auth state changed:', event, session ? 'Sesión encontrada' : 'Sin sesión');
   if (event === 'SIGNED_IN' && session) {
     console.log('Usuario autenticado con ID:', session.user.id);
     isAdmin = session.user.id === 'your-admin-user-id-here'; // Reemplaza con el user_id real del administrador
@@ -37,6 +38,7 @@ supabase.auth.onAuthStateChange((event, session) => {
 async function checkAuth() {
   try {
     const { data: { session }, error } = await supabase.auth.getSession();
+    console.log('checkAuth - Sesión:', session, 'Error:', error);
     if (error || !session) {
       console.log('Usuario no autenticado, intentando refrescar sesión...');
       const { data, error: refreshError } = await supabase.auth.refreshSession();
@@ -57,6 +59,7 @@ async function checkAuth() {
 async function cargarDatos() {
   try {
     const { authenticated } = await checkAuth();
+    console.log('cargarDatos - Autenticado:', authenticated);
     if (!authenticated) {
       console.log('Cargando datos sin autenticación, usando localStorage.');
       const datosGuardados = localStorage.getItem(STORAGE_KEY);
@@ -198,6 +201,7 @@ function mostrarNotificacion(mensaje, tipo = 'info') {
 }
 
 document.addEventListener('DOMContentLoaded', async () => {
+  console.log('DOM cargado, iniciando...');
   document.getElementById('matchDate').valueAsDate = new Date();
   await cargarDatos();
   actualizarResultados();
@@ -206,8 +210,11 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   // Verificar estado de autenticación al cargar
-  const { data: { session } } = await supabase.auth.getSession();
+  console.log('Verificando sesión...');
+  const { data: { session }, error } = await supabase.auth.getSession();
+  console.log('Sesión obtenida:', session, 'Error:', error);
   if (!session) {
+    console.log('No hay sesión, mostrando formulario de login...');
     // Crear formulario de login
     const loginDiv = document.createElement('div');
     loginDiv.id = 'loginDiv';
@@ -228,6 +235,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         mostrarNotificacion('Por favor, completa todos los campos.', 'error');
         return;
       }
+      console.log('Intentando iniciar sesión con:', email);
       const { error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) mostrarNotificacion(`Error: ${error.message}`, 'error');
     });
@@ -239,6 +247,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         mostrarNotificacion('El email y la contraseña (mínimo 6 caracteres) son obligatorios.', 'error');
         return;
       }
+      console.log('Intentando registrarse con:', email);
       const { error } = await supabase.auth.signUp({ email, password });
       if (error) mostrarNotificacion(`Error: ${error.message}`, 'error');
       else mostrarNotificacion('Registro exitoso, verifica tu correo si es necesario.', 'success');
@@ -259,7 +268,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 });
 
 async function calcularCalificacion() {
-  if (!(await checkAuth())) {
+  if (!(await checkAuth()).authenticated) {
     mostrarNotificacion('Solo el administrador puede calificar jugadores', 'error');
     return;
   }
