@@ -3,7 +3,7 @@ const { createClient } = window.supabase;
 
 // Configura las credenciales de Supabase (reemplaza con tus valores reales)
 const supabaseUrl = 'https://faaeszqpwybpmsasbywl.supabase.co'; // Asegúrate de reemplazar esto
-const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZhYWVzenFwd3licG1zYXNieXdsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTY4NDQzMTksImV4cCI6MjA3MjQyMDMxOX0.WYEykLzGGoQwZ73W7Cbm9lgZRUQSo5bbWWXvLi4uY98r'; // Asegúrate de reemplazar esto
+const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZhYWVzenFwd3licG1zYXNieXdsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTY4NDQzMTksImV4cCI6MjA3MjQyMDMxOX0.WYEykLzGGoQwZ73W7Cbm9lgZRUQSo5bbWWXvLi4uY98'; // Asegúrate de reemplazar esto
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 // Detectar si estamos en Netlify (producción) o local
@@ -14,6 +14,25 @@ let jugadores = [];
 let vistaActual = 'ranking';
 const STORAGE_KEY = 'illuminated_fc_data';
 let isAdmin = false;
+
+// Escuchar cambios en la autenticación
+supabase.auth.onAuthStateChange((event, session) => {
+  if (event === 'SIGNED_IN' && session) {
+    console.log('Usuario autenticado con ID:', session.user.id);
+    isAdmin = session.user.id === 'your-admin-user-id-here'; // Reemplaza con el user_id real del administrador
+    cargarDatos(); // Recargar datos tras login
+    if (document.querySelector('button#loginBtn')) {
+      document.querySelector('button#loginBtn').remove();
+      document.querySelectorAll('.btn, .expand-btn, input, .clear-btn').forEach(el => (el.disabled = false));
+    }
+  } else if (event === 'SIGNED_OUT') {
+    console.log('Usuario desautenticado');
+    isAdmin = false;
+    jugadores = [];
+    localStorage.removeItem(STORAGE_KEY);
+    actualizarResultados();
+  }
+});
 
 async function checkAuth() {
   try {
@@ -27,7 +46,7 @@ async function checkAuth() {
       }
       console.log('Sesión refrescada con éxito');
     }
-    isAdmin = session.user.id === '6594ad3c-020b-4671-8321-7b60138faedf'; // Reemplaza con el user_id real del administrador
+    isAdmin = session.user.id === 'your-admin-user-id-here'; // Reemplaza con el user_id real del administrador
     return isAdmin;
   } catch (error) {
     console.error('Error en autenticación:', error);
@@ -173,8 +192,12 @@ document.addEventListener('DOMContentLoaded', async () => {
   if (jugadores.length > 0) {
     setTimeout(() => mostrarNotificacion(`Bienvenido de vuelta! ${jugadores.length} registros cargados`, 'info'), 1000);
   }
-  if (!(await checkAuth())) {
+
+  // Verificar estado de autenticación al cargar
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session) {
     const loginBtn = document.createElement('button');
+    loginBtn.id = 'loginBtn';
     loginBtn.textContent = 'Iniciar Sesión con Google';
     loginBtn.style.cssText = 'padding: 8px 16px; background: #4285f4; color: white; border: none; border-radius: 4px; cursor: pointer; margin: 10px;';
     loginBtn.addEventListener('click', () => {
@@ -188,7 +211,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.body.appendChild(loginBtn);
     document.querySelectorAll('.btn, .expand-btn, input, .clear-btn').forEach(el => (el.disabled = true));
   } else {
-    console.log('Usuario autenticado con ID:', supabase.auth.getSession().data.session.user.id);
+    console.log('Usuario autenticado con ID:', session.user.id);
+    isAdmin = session.user.id === 'your-admin-user-id-here'; // Reemplaza con el user_id real del administrador
+    document.querySelectorAll('.btn, .expand-btn, input, .clear-btn').forEach(el => (el.disabled = false));
   }
 
   // Listeners para botones
