@@ -31,6 +31,9 @@ exports.handler = async function(event, context) {
     }
 
     const { jugadores, vistaActual, fechaGuardado } = JSON.parse(event.body);
+
+    // Limpiar la tabla antes de insertar (opción 1: reemplazar todo)
+    await supabase.from('jugadores').delete().neq('id', 0); // Elimina todos los registros (ajusta si tienes un ID único)
     const { data, error } = await supabase.from('jugadores').insert(jugadores);
 
     if (error) {
