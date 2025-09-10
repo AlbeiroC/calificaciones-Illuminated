@@ -24,20 +24,52 @@ exports.handler = async function(event, context) {
       return { statusCode: 403, body: JSON.stringify({ error: 'Unauthorized' }) };
     }
 
-    const { jugadores, vistaActual, fechaGuardado } = JSON.parse(event.body);
-    const { data, error } = await supabase.from('jugadores').insert(jugadores);
+    const { jugadores, vistaActual, fechaGuardado, action, timestamp } = JSON.parse(event.body || '{}');
 
-    if (error) throw new Error(error.message);
+    if (action === 'delete' && timestamp) {
+      // Eliminar el registro basado en el timestamp
+      const { data, error } = await supabase
+        .from('jugadores')
+        .delete()
+        .eq('timestamp', timestamp);
+
+      if (error) throw new Error(`Error al eliminar: ${error.message}`);
+
+      // Recargar los datos actualizados
+      const { data: updatedData, error: loadError } = await supabase.from('jugadores').select('*');
+      if (loadError) throw new Error(`Error al cargar datos actualizados: ${loadError.message}`);
+
+      return {
+        statusCode: 200,
+        body: JSON.stringify({ message: 'Registro eliminado', jugadores: updatedData, vistaActual, fechaGuardado }),
+      };
+    }
+
+    // Si no es una eliminación y se proporcionan jugadores, insertar o actualizar
+    if (jugadores && Array.isArray(jugadores) && jugadores.length > 0) {
+      const { data, error } = await supabase.from('jugadores').upsert(jugadores, { onConflict: 'timestamp' });
+
+      if (error) throw new Error(`Error al guardar: ${error.message}`);
+
+      // Recargar los datos actualizados
+      const { data: updatedData, error: loadError } = await supabase.from('jugadores').select('*');
+      if (loadError) throw new Error(`Error al cargar datos actualizados: ${loadError.message}`);
+
+      return {
+        statusCode: 200,
+        body: JSON.stringify({ message: 'Datos guardados', jugadores: updatedData, vistaActual, fechaGuardado }),
+      };
+    }
 
     return {
-      statusCode: 200,
-      body: JSON.stringify({ message: 'Datos guardados', jugadores: data, vistaActual, fechaGuardado }),
+      statusCode: 400,
+      body: JSON.stringify({ error: 'No se proporcionaron datos válidos o acción no soportada' }),
     };
   } catch (error) {
     console.error('Error:', error);
     return {
       statusCode: 500,
-      body: JSON.stringify({ message: 'Error al guardar datos', error: error.message }),
+      body: JSON.stringify({ message: 'Error al procesar la solicitud', error: error.message }),
     };
   }
 };

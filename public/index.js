@@ -494,8 +494,9 @@ async function eliminarPartido(index) {
     return;
   }
   if (confirm('¿Está seguro de eliminar este partido del historial?')) {
+    const jugadorAEliminar = jugadores[index];
     jugadores.splice(index, 1);
-    guardarDatos();
+    await guardarDatos({ action: 'delete', timestamp: jugadorAEliminar.timestamp });
     actualizarResultados();
   }
 }
