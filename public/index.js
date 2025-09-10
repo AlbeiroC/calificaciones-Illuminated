@@ -285,6 +285,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   document.querySelector('#avanzadoBtn')?.addEventListener('click', () => mostrarVista('avanzado'));
 });
 
+// ... (código anterior hasta calcularCalificacion permanece igual)
+
 async function calcularCalificacion() {
   if (!(await checkAuth()).authenticated) {
     mostrarNotificacion('Solo el administrador puede calificar jugadores', 'error');
@@ -313,10 +315,13 @@ async function calcularCalificacion() {
   });
 
   const total = asistencia + rendimiento + actitud + bonificaciones;
-  const jugador = { nombre, fecha, asistencia, rendimiento, actitud, bonificaciones, bonificacionesDetalle, total, timestamp: new Date() };
-  jugadores.unshift(jugador);
+  // Crear jugador completo con bonificacionesDetalle para la interfaz
+  const jugadorCompleto = { nombre, fecha, asistencia, rendimiento, actitud, bonificaciones, bonificacionesDetalle, total, timestamp: new Date() };
+  jugadores.unshift(jugadorCompleto);
 
-  await guardarDatos(jugador);
+  // Crear versión filtrada para guardar en Supabase, excluyendo bonificacionesDetalle
+  const jugadorParaGuardar = { nombre, fecha, asistencia, rendimiento, actitud, bonificaciones, total, timestamp: new Date().toISOString() };
+  await guardarDatos(jugadorParaGuardar);
   mostrarNotificacion(`Calificación de ${nombre} guardada correctamente`, 'success');
   actualizarResultados();
 
@@ -324,6 +329,8 @@ async function calcularCalificacion() {
   document.querySelectorAll('input[type="radio"]').forEach(radio => (radio.checked = false));
   document.querySelectorAll('input[type="checkbox"]').forEach(checkbox => (checkbox.checked = false));
 }
+
+// ... (código posterior permanece igual)
 
 function mostrarVista(vista) {
   vistaActual = vista;
