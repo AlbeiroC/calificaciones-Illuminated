@@ -254,7 +254,11 @@ document.addEventListener('DOMContentLoaded', async () => {
       const { data, error } = await supabase.auth.signUp({ email, password });
       console.log('Resultado de signUp:', data, 'Error:', error);
       if (error) mostrarNotificacion(`Error: ${error.message}`, 'error');
-      else mostrarNotificacion('Registro exitoso, verifica tu correo si es necesario.', 'success');
+      else {
+        mostrarNotificacion('Registro exitoso, verifica tu correo si es necesario.', 'success');
+        await supabase.auth.refreshSession(); // Forzar refresh de sesión
+        console.log('Sesión refrescada tras registro:', await supabase.auth.getSession());
+      }
     });
 
     // No desactivar los inputs del formulario, solo los botones principales
