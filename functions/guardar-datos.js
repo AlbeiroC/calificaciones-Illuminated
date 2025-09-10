@@ -9,6 +9,7 @@ const ALLOWED_USER_ID = 'c60554e6-2070-4c77-9bd1-9f441b0c4669'; // Ajusta según
 
 exports.handler = async function(event, context) {
   try {
+    console.log('Variables de entorno:', { supabaseUrl: !!supabaseUrl, supabaseKey: !!supabaseKey });
     if (!supabaseUrl || !supabaseKey) {
       throw new Error('Faltan variables de entorno SUPABASE_URL o SUPABASE_KEY');
     }
@@ -23,7 +24,7 @@ exports.handler = async function(event, context) {
     console.log('Token recibido:', token);
 
     const { data: { user }, error: authError } = await supabase.auth.getUser(token);
-    console.log('Usuario validado:', user ? user.id : 'No válido');
+    console.log('Usuario validado:', user ? { id: user.id, email: user.email } : 'No válido');
 
     if (authError || !user || user.id !== ALLOWED_USER_ID) {
       console.log('Error de autorización o usuario no es admin:', authError?.message || 'Usuario no autorizado');
@@ -31,12 +32,13 @@ exports.handler = async function(event, context) {
     }
 
     const { jugadores, vistaActual, fechaGuardado } = JSON.parse(event.body);
+    console.log('Datos recibidos:', { jugadoresLength: jugadores.length, vistaActual, fechaGuardado });
 
-    // Usar upsert para insertar o actualizar registros basados en timestamp
-    const { data, error } = await supabase.from('jugadores').upsert(jugadores, { onConflict: 'timestamp' });
+    // Usar upsert para insertar o actualizar registros
+    const { data, error } = await supabase.from('jugadores').upsert(jugadores);
 
     if (error) {
-      console.error('Error al insertar/actualizar en Supabase:', error.message);
+      console.error('Error al insertar/actualizar en Supabase:', error.message, error.details);
       throw new Error(`Error al guardar en Supabase: ${error.message}`);
     }
 
@@ -46,7 +48,7 @@ exports.handler = async function(event, context) {
       body: JSON.stringify({ message: 'Datos guardados/actualizados correctamente', jugadores: data, vistaActual, fechaGuardado }),
     };
   } catch (error) {
-    console.error('Error en guardar-datos:', error);
+    console.error('Error en guardar-datos:', error.message, error.stack);
     return {
       statusCode: 500,
       body: JSON.stringify({ message: 'Error al guardar datos', error: error.message }),
