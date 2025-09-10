@@ -202,9 +202,12 @@ async function guardarDatos(nuevoJugador) {
     if (!response.ok) throw new Error(`Error al guardar en Supabase: ${await response.text()}`);
     const result = await response.json();
     console.log('Respuesta de guardar-datos:', result);
-    // Solo actualizar jugadores si el backend devuelve una lista completa
+    // Actualizar jugadores con los id generados por Supabase
     if (result.jugadores && Array.isArray(result.jugadores)) {
-      jugadores = result.jugadores;
+      jugadores = result.jugadores.map(j => ({
+        ...j,
+        timestamp: j.timestamp || new Date().toISOString(), // Asegurar que timestamp no se pierda
+      }));
     }
     vistaActual = result.vistaActual || vistaActual;
     localStorage.setItem(STORAGE_KEY, JSON.stringify({ jugadores, vistaActual, fechaGuardado: result.fechaGuardado || new Date().toISOString() }));
@@ -496,7 +499,7 @@ async function eliminarPartido(index) {
   if (confirm('¿Está seguro de eliminar este partido del historial?')) {
     const jugadorAEliminar = jugadores[index];
     jugadores.splice(index, 1);
-    await guardarDatos({ action: 'delete', timestamp: jugadorAEliminar.timestamp });
+    await guardarDatos({ action: 'delete', id: jugadorAEliminar.id }); // Usar id en lugar de timestamp
     actualizarResultados();
   }
 }

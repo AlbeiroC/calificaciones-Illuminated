@@ -1,75 +1,73 @@
-const { createClient } = require('@supabase/supabase-js');
-
-const supabaseUrl = process.env.SUPABASE_URL;
-const supabaseKey = process.env.SUPABASE_KEY;
-const supabase = createClient(supabaseUrl, supabaseKey);
-
-const ALLOWED_USER_ID = 'c60554e6-2070-4c77-9bd1-9f441b0c4669';
-
-exports.handler = async function(event, context) {
+async function guardarDatos(nuevoJugador) {
   try {
-    if (!supabaseUrl || !supabaseKey) {
-      throw new Error('Faltan variables de entorno');
+    const { authenticated, isAdmin: isCurrentAdmin } = await checkAuth();
+    console.log('guardarDatos - Autenticado:', authenticated, 'Es admin:', isCurrentAdmin);
+    if (!authenticated || !isCurrentAdmin) {
+      mostrarNotificacion('No autorizado para guardar datos', 'error');
+      return;
     }
+    console.log('Guardando datos - nuevoJugador:', nuevoJugador);
 
-    const authHeader = event.headers.authorization;
-    if (!authHeader) {
-      return { statusCode: 401, body: JSON.stringify({ error: 'No authorization header' }) };
+    const datos = nuevoJugador
+      ? {
+          jugadores: [
+            {
+              nombre: nuevoJugador.nombre,
+              fecha: nuevoJugador.fecha,
+              asistencia: nuevoJugador.asistencia,
+              rendimiento: nuevoJugador.rendimiento,
+              actitud: nuevoJugador.actitud,
+              bonificaciones: nuevoJugador.bonificaciones,
+              total: nuevoJugador.total,
+              timestamp: nuevoJugador.timestamp || new Date().toISOString(),
+            },
+          ],
+          vistaActual,
+          fechaGuardado: new Date().toISOString(),
+        }
+      : {
+          jugadores: jugadores.map(j => ({
+            nombre: j.nombre,
+            fecha: j.fecha,
+            asistencia: j.asistencia,
+            rendimiento: j.rendimiento,
+            actitud: j.actitud,
+            bonificaciones: j.bonificaciones,
+            total: j.total,
+            timestamp: j.timestamp || new Date().toISOString(),
+          })),
+          vistaActual,
+          fechaGuardado: new Date().toISOString(),
+        };
+
+    const { data: { session } } = await supabase.auth.getSession();
+    const token = session.access_token;
+
+    const response = await fetch(`${functionBaseUrl}/guardar-datos`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify(datos),
+    });
+    if (!response.ok) throw new Error(`Error al guardar en Supabase: ${await response.text()}`);
+    const result = await response.json();
+    console.log('Respuesta de guardar-datos:', result);
+    // Actualizar jugadores con los id generados por Supabase
+    if (result.jugadores && Array.isArray(result.jugadores)) {
+      jugadores = result.jugadores.map(j => ({
+        ...j,
+        timestamp: j.timestamp || new Date().toISOString(), // Asegurar que timestamp no se pierda
+      }));
     }
-
-    const token = authHeader.replace('Bearer ', '');
-    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
-
-    if (authError || !user || user.id !== ALLOWED_USER_ID) {
-      return { statusCode: 403, body: JSON.stringify({ error: 'Unauthorized' }) };
-    }
-
-    const { jugadores, vistaActual, fechaGuardado, action, timestamp } = JSON.parse(event.body || '{}');
-
-    if (action === 'delete' && timestamp) {
-      // Eliminar el registro basado en el timestamp
-      const { data, error } = await supabase
-        .from('jugadores')
-        .delete()
-        .eq('timestamp', timestamp);
-
-      if (error) throw new Error(`Error al eliminar: ${error.message}`);
-
-      // Recargar los datos actualizados
-      const { data: updatedData, error: loadError } = await supabase.from('jugadores').select('*');
-      if (loadError) throw new Error(`Error al cargar datos actualizados: ${loadError.message}`);
-
-      return {
-        statusCode: 200,
-        body: JSON.stringify({ message: 'Registro eliminado', jugadores: updatedData, vistaActual, fechaGuardado }),
-      };
-    }
-
-    // Si no es una eliminación y se proporcionan jugadores, insertar o actualizar
-    if (jugadores && Array.isArray(jugadores) && jugadores.length > 0) {
-      const { data, error } = await supabase.from('jugadores').upsert(jugadores, { onConflict: 'timestamp' });
-
-      if (error) throw new Error(`Error al guardar: ${error.message}`);
-
-      // Recargar los datos actualizados
-      const { data: updatedData, error: loadError } = await supabase.from('jugadores').select('*');
-      if (loadError) throw new Error(`Error al cargar datos actualizados: ${loadError.message}`);
-
-      return {
-        statusCode: 200,
-        body: JSON.stringify({ message: 'Datos guardados', jugadores: updatedData, vistaActual, fechaGuardado }),
-      };
-    }
-
-    return {
-      statusCode: 400,
-      body: JSON.stringify({ error: 'No se proporcionaron datos válidos o acción no soportada' }),
-    };
+    vistaActual = result.vistaActual || vistaActual;
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ jugadores, vistaActual, fechaGuardado: result.fechaGuardado || new Date().toISOString() }));
+    console.log('💾 Datos guardados en Supabase');
+    mostrarNotificacion('Datos guardados correctamente', 'success');
   } catch (error) {
-    console.error('Error:', error);
-    return {
-      statusCode: 500,
-      body: JSON.stringify({ message: 'Error al procesar la solicitud', error: error.message }),
-    };
+    console.error('❌ Error al guardar datos:', error);
+    mostrarNotificacion('Error al guardar en Supabase, usando localStorage.', 'error');
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ jugadores, vistaActual, fechaGuardado: new Date().toISOString() }));
   }
-};
+}
