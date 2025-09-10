@@ -32,19 +32,18 @@ exports.handler = async function(event, context) {
 
     const { jugadores, vistaActual, fechaGuardado } = JSON.parse(event.body);
 
-    // Limpiar la tabla antes de insertar
-    await supabase.from('jugadores').delete().neq('id', 0); // Elimina todos los registros (ajusta si tienes un ID único)
-    const { data, error } = await supabase.from('jugadores').insert(jugadores);
+    // Usar upsert para insertar o actualizar registros basados en timestamp
+    const { data, error } = await supabase.from('jugadores').upsert(jugadores, { onConflict: 'timestamp' });
 
     if (error) {
-      console.error('Error al insertar en Supabase:', error.message);
+      console.error('Error al insertar/actualizar en Supabase:', error.message);
       throw new Error(`Error al guardar en Supabase: ${error.message}`);
     }
 
-    console.log('Datos guardados en Supabase:', data);
+    console.log('Datos guardados/actualizados en Supabase:', data);
     return {
       statusCode: 200,
-      body: JSON.stringify({ message: 'Datos guardados correctamente', jugadores: data, vistaActual, fechaGuardado }),
+      body: JSON.stringify({ message: 'Datos guardados/actualizados correctamente', jugadores: data, vistaActual, fechaGuardado }),
     };
   } catch (error) {
     console.error('Error en guardar-datos:', error);

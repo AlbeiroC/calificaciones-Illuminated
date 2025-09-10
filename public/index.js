@@ -115,37 +115,41 @@ async function guardarDatos(nuevoJugador) {
       return;
     }
     console.log('Guardando datos - nuevoJugador:', nuevoJugador);
-    let datos = nuevoJugador
-      ? {
-          jugadores: [
-            {
-              nombre: nuevoJugador.nombre,
-              fecha: nuevoJugador.fecha,
-              asistencia: nuevoJugador.asistencia,
-              rendimiento: nuevoJugador.rendimiento,
-              actitud: nuevoJugador.actitud,
-              bonificaciones: nuevoJugador.bonificaciones,
-              total: nuevoJugador.total,
-              timestamp: nuevoJugador.timestamp || new Date().toISOString(),
-            },
-          ],
-          vistaActual,
-          fechaGuardado: new Date().toISOString(),
-        }
-      : {
-          jugadores: jugadores.map(j => ({
-            nombre: j.nombre,
-            fecha: j.fecha,
-            asistencia: j.asistencia,
-            rendimiento: j.rendimiento,
-            actitud: j.actitud,
-            bonificaciones: j.bonificaciones,
-            total: j.total,
-            timestamp: j.timestamp || new Date().toISOString(),
-          })),
-          vistaActual,
-          fechaGuardado: new Date().toISOString(),
-        };
+    let datos;
+    if (nuevoJugador) {
+      // Añadir el nuevo jugador a la lista existente
+      const nuevoJugadorData = {
+        nombre: nuevoJugador.nombre,
+        fecha: nuevoJugador.fecha,
+        asistencia: nuevoJugador.asistencia,
+        rendimiento: nuevoJugador.rendimiento,
+        actitud: nuevoJugador.actitud,
+        bonificaciones: nuevoJugador.bonificaciones,
+        total: nuevoJugador.total,
+        timestamp: nuevoJugador.timestamp || new Date().toISOString(),
+      };
+      datos = {
+        jugadores: [...jugadores, nuevoJugadorData],
+        vistaActual,
+        fechaGuardado: new Date().toISOString(),
+      };
+    } else {
+      // Enviar todos los jugadores actuales
+      datos = {
+        jugadores: jugadores.map(j => ({
+          nombre: j.nombre,
+          fecha: j.fecha,
+          asistencia: j.asistencia,
+          rendimiento: j.rendimiento,
+          actitud: j.actitud,
+          bonificaciones: j.bonificaciones,
+          total: j.total,
+          timestamp: j.timestamp || new Date().toISOString(),
+        })),
+        vistaActual,
+        fechaGuardado: new Date().toISOString(),
+      };
+    }
 
     const { data: { session } } = await supabase.auth.getSession();
     const token = session.access_token;
@@ -162,7 +166,7 @@ async function guardarDatos(nuevoJugador) {
     if (!response.ok) throw new Error(`Error al guardar en Supabase: ${response.status} - ${response.statusText}`);
     const result = await response.json();
     console.log('Respuesta de guardar-datos:', result);
-    jugadores = result.jugadores || []; // Asegura que se usen los datos devueltos por Supabase
+    jugadores = result.jugadores || []; // Actualiza con los datos devueltos por Supabase
     vistaActual = result.vistaActual || vistaActual;
     localStorage.setItem(STORAGE_KEY, JSON.stringify({ jugadores, vistaActual, fechaGuardado: result.fechaGuardado || new Date().toISOString() }));
     console.log('💾 Datos guardados en Supabase');
