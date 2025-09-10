@@ -155,7 +155,8 @@ async function guardarDatos(nuevoJugador) {
       return;
     }
     console.log('Guardando datos - nuevoJugador:', nuevoJugador);
-    let datos = nuevoJugador
+
+    const datos = nuevoJugador
       ? {
           jugadores: [
             {
@@ -199,9 +200,16 @@ async function guardarDatos(nuevoJugador) {
       body: JSON.stringify(datos),
     });
     if (!response.ok) throw new Error(`Error al guardar en Supabase: ${await response.text()}`);
+    const result = await response.json();
+    console.log('Respuesta de guardar-datos:', result);
+    // Solo actualizar jugadores si el backend devuelve una lista completa
+    if (result.jugadores && Array.isArray(result.jugadores)) {
+      jugadores = result.jugadores;
+    }
+    vistaActual = result.vistaActual || vistaActual;
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ jugadores, vistaActual, fechaGuardado: result.fechaGuardado || new Date().toISOString() }));
     console.log('💾 Datos guardados en Supabase');
     mostrarNotificacion('Datos guardados correctamente', 'success');
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({ jugadores, vistaActual, fechaGuardado: new Date().toISOString() }));
   } catch (error) {
     console.error('❌ Error al guardar datos:', error);
     mostrarNotificacion('Error al guardar en Supabase, usando localStorage.', 'error');
