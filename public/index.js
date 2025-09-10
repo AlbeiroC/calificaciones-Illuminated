@@ -159,9 +159,9 @@ async function guardarDatos(nuevoJugador) {
       },
       body: JSON.stringify(datos),
     });
-    console.log('Respuesta de guardar-datos:', await response.text()); // Depuración
-    if (!response.ok) throw new Error(`Error al guardar en Supabase: ${await response.text()}`);
-    const result = await response.json();
+    if (!response.ok) throw new Error(`Error al guardar en Supabase: ${response.status} - ${response.statusText}`);
+    const result = await response.json(); // Leer JSON directamente
+    console.log('Respuesta de guardar-datos:', result); // Depuración con el JSON parseado
     jugadores = result.jugadores || jugadores; // Actualiza jugadores con la respuesta
     localStorage.setItem(STORAGE_KEY, JSON.stringify({ jugadores, vistaActual, fechaGuardado: result.fechaGuardado || new Date().toISOString() }));
     console.log('💾 Datos guardados en Supabase');
