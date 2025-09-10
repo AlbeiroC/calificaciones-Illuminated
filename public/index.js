@@ -117,7 +117,7 @@ async function guardarDatos(nuevoJugador) {
     console.log('Guardando datos - nuevoJugador:', nuevoJugador);
     let datos;
     if (nuevoJugador) {
-      // Añadir el nuevo jugador a la lista existente
+      // Añadir el nuevo jugador a la lista existente, excluyendo bonificacionesDetalle
       const nuevoJugadorData = {
         nombre: nuevoJugador.nombre,
         fecha: nuevoJugador.fecha,
@@ -134,7 +134,7 @@ async function guardarDatos(nuevoJugador) {
         fechaGuardado: new Date().toISOString(),
       };
     } else {
-      // Enviar todos los jugadores actuales
+      // Enviar todos los jugadores actuales, excluyendo bonificacionesDetalle
       datos = {
         jugadores: jugadores.map(j => ({
           nombre: j.nombre,
