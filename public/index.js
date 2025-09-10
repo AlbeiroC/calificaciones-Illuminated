@@ -20,7 +20,7 @@ supabase.auth.onAuthStateChange((event, session) => {
   console.log('Auth state changed:', event, session ? `Sesión encontrada con ID: ${session.user.id}` : 'Sin sesión');
   if (event === 'SIGNED_IN' && session) {
     console.log('Usuario autenticado con ID:', session.user.id);
-    isAdmin = session.user.id === 'c60554e6-2070-4c77-9bd1-9f441b0c4669'; // Reemplaza con el user_id real del administrador
+    isAdmin = session.user.id === 'c60554e6-2070-4c77-9bd1-9f441b0c4669'; // ID del administrador
     cargarDatos();
     if (document.querySelector('div#loginDiv')) {
       document.querySelector('div#loginDiv').remove();
@@ -48,7 +48,7 @@ async function checkAuth() {
       }
       console.log('Sesión refrescada con éxito');
     }
-    const adminCheck = session.user.id === 'c60554e6-2070-4c77-9bd1-9f441b0c4669'; // Reemplaza con el user_id real del administrador
+    const adminCheck = session.user.id === 'c60554e6-2070-4c77-9bd1-9f441b0c4669'; // ID del administrador
     return { authenticated: true, isAdmin: adminCheck };
   } catch (error) {
     console.error('Error en autenticación:', error);
@@ -82,11 +82,11 @@ async function cargarDatos() {
     const response = await fetch(`${functionBaseUrl}/cargar-datos`, {
       headers: { Authorization: `Bearer ${token}` },
     });
-    if (!response.ok) throw new Error('Error al cargar desde Supabase');
-
+    if (!response.ok) throw new Error(`Error al cargar desde Supabase: ${await response.text()}`);
     const datos = await response.json();
     jugadores = datos.jugadores || [];
     vistaActual = datos.vistaActual || 'ranking';
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ jugadores, vistaActual })); // Sincroniza localStorage
     actualizarVistas();
     console.log(`✅ Datos cargados desde Supabase: ${jugadores.length} registros`);
   } catch (error) {
@@ -110,8 +110,8 @@ async function guardarDatos(nuevoJugador) {
   try {
     const { authenticated, isAdmin: isCurrentAdmin } = await checkAuth();
     console.log('guardarDatos - Autenticado:', authenticated, 'Es admin:', isCurrentAdmin);
-    if (!authenticated) {
-      mostrarNotificacion('No autorizado para guardar datos', 'error');
+    if (!authenticated || !isCurrentAdmin) {
+      mostrarNotificacion('Solo el administrador puede guardar datos', 'error');
       return;
     }
     console.log('Guardando datos - nuevoJugador:', nuevoJugador);
@@ -149,6 +149,7 @@ async function guardarDatos(nuevoJugador) {
 
     const { data: { session } } = await supabase.auth.getSession();
     const token = session.access_token;
+    console.log('Token de sesión para guardar:', token);
 
     const response = await fetch(`${functionBaseUrl}/guardar-datos`, {
       method: 'POST',
@@ -158,10 +159,13 @@ async function guardarDatos(nuevoJugador) {
       },
       body: JSON.stringify(datos),
     });
+    console.log('Respuesta de guardar-datos:', await response.text()); // Depuración
     if (!response.ok) throw new Error(`Error al guardar en Supabase: ${await response.text()}`);
+    const result = await response.json();
+    jugadores = result.jugadores || jugadores; // Actualiza jugadores con la respuesta
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ jugadores, vistaActual, fechaGuardado: result.fechaGuardado || new Date().toISOString() }));
     console.log('💾 Datos guardados en Supabase');
     mostrarNotificacion('Datos guardados correctamente', 'success');
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({ jugadores, vistaActual, fechaGuardado: new Date().toISOString() }));
   } catch (error) {
     console.error('❌ Error al guardar datos:', error);
     mostrarNotificacion('Error al guardar en Supabase, usando localStorage.', 'error');
@@ -265,7 +269,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.querySelectorAll('.calculate-btn, .expand-btn, .clear-btn').forEach(el => (el.disabled = true));
   } else {
     console.log('Usuario autenticado con ID:', session.user.id);
-    isAdmin = session.user.id === 'c60554e6-2070-4c77-9bd1-9f441b0c4669'; // Reemplaza con el user_id real del administrador
+    isAdmin = session.user.id === 'c60554e6-2070-4c77-9bd1-9f441b0c4669'; // ID del administrador
     document.querySelectorAll('.btn, .expand-btn, .clear-btn').forEach(el => (el.disabled = false)); // Excluir inputs
   }
 
