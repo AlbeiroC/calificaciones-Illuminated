@@ -8,7 +8,7 @@ const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 // Detectar si estamos en Netlify (producción) o local
 const isNetlify = window.location.hostname.includes('netlify.app') || window.location.hostname.includes('localhost') === false;
-const functionBaseUrl = isNetlify ? '/calificaciones _illuminated/functions' : 'http://localhost:8888/calificaciones _illuminated/functions';
+const functionBaseUrl = isNetlify ? '/.netlify/functions' : 'http://localhost:8888/.netlify/functions';
 
 let jugadores = [];
 let vistaActual = 'ranking';
