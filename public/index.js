@@ -8,13 +8,12 @@ const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 // Detectar si estamos en Netlify (producción) o local
 const isNetlify = window.location.hostname.includes('netlify.app') || window.location.hostname.includes('localhost') === false;
-const functionBaseUrl = isNetlify ? '/functions' : 'http://localhost:8888/functions';
+const functionBaseUrl = isNetlify ? '/.netlify/functions' : 'http://localhost:8888/.netlify/functions';
 
 let jugadores = [];
 let vistaActual = 'ranking';
 const STORAGE_KEY = 'illuminated_fc_data';
 let isAdmin = false;
-
 
 // Escuchar cambios en la autenticación
 supabase.auth.onAuthStateChange((event, session) => {
@@ -203,12 +202,9 @@ async function guardarDatos(nuevoJugador) {
     if (!response.ok) throw new Error(`Error al guardar en Supabase: ${await response.text()}`);
     const result = await response.json();
     console.log('Respuesta de guardar-datos:', result);
-    // Actualizar jugadores con los id generados por Supabase
+    // Solo actualizar jugadores si el backend devuelve una lista completa
     if (result.jugadores && Array.isArray(result.jugadores)) {
-      jugadores = result.jugadores.map(j => ({
-        ...j,
-        timestamp: j.timestamp || new Date().toISOString(), // Asegurar que timestamp no se pierda
-      }));
+      jugadores = result.jugadores;
     }
     vistaActual = result.vistaActual || vistaActual;
     localStorage.setItem(STORAGE_KEY, JSON.stringify({ jugadores, vistaActual, fechaGuardado: result.fechaGuardado || new Date().toISOString() }));
@@ -498,9 +494,8 @@ async function eliminarPartido(index) {
     return;
   }
   if (confirm('¿Está seguro de eliminar este partido del historial?')) {
-    const jugadorAEliminar = jugadores[index];
     jugadores.splice(index, 1);
-    await guardarDatos({ action: 'delete', id: jugadorAEliminar.id }); // Usar id en lugar de timestamp
+    guardarDatos();
     actualizarResultados();
   }
 }
