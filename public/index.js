@@ -7,7 +7,7 @@ const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYm
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 // Detectar si estamos en Netlify (producción) o local
-const isNetlify = window.location.hostname.includes('netlify.app') || window.location.hostname.includes('localhost') === false;
+const isNetlify = window.location.hostname.includes('netlify.app') || !window.location.hostname.includes('localhost');
 const functionBaseUrl = isNetlify ? '/.netlify/functions' : 'http://localhost:8888/.netlify/functions';
 
 let jugadores = [];
@@ -17,14 +17,15 @@ let isAdmin = false;
 
 // Escuchar cambios en la autenticación
 supabase.auth.onAuthStateChange((event, session) => {
-  console.log('Auth state changed:', event, session ? `Sesión encontrada con ID: ${session.user.id}` : 'Sin sesión');
+  console.log('Auth state changed:', event, session ? `Sesión encontrada con ID: ${session?.user?.id}` : 'Sin sesión');
   if (event === 'SIGNED_IN' && session) {
     console.log('Usuario autenticado con ID:', session.user.id);
     isAdmin = session.user.id === 'c60554e6-2070-4c77-9bd1-9f441b0c4669'; // ID del administrador
     cargarDatos();
-    if (document.querySelector('div#loginDiv')) {
-      document.querySelector('div#loginDiv').remove();
-      document.querySelectorAll('.btn, .expand-btn, .clear-btn').forEach(el => (el.disabled = false)); // Excluir inputs
+    const loginDiv = document.querySelector('div#loginDiv');
+    if (loginDiv) {
+      loginDiv.remove();
+      document.querySelectorAll('.btn, .expand-btn, .clear-btn').forEach(el => (el.disabled = false));
     }
   } else if (event === 'SIGNED_OUT') {
     console.log('Usuario desautenticado');
@@ -84,9 +85,9 @@ async function cargarDatos() {
     });
     if (!response.ok) throw new Error(`Error al cargar desde Supabase: ${await response.text()}`);
     const datos = await response.json();
-    jugadores = datos.jugadores || []; // Asegura que solo se asignen los datos cargados
+    jugadores = datos.jugadores || [];
     vistaActual = datos.vistaActual || 'ranking';
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({ jugadores, vistaActual })); // Sincroniza localStorage
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ jugadores, vistaActual }));
     actualizarVistas();
     console.log(`✅ Datos cargados desde Supabase: ${jugadores.length} registros`);
   } catch (error) {
@@ -111,8 +112,8 @@ async function calcularCalificacion() {
     mostrarNotificacion('Solo el administrador puede calificar jugadores', 'error');
     return;
   }
-  const nombre = document.getElementById('playerName').value.trim();
-  const fecha = document.getElementById('matchDate').value;
+  const nombre = document.getElementById('playerName')?.value.trim() || '';
+  const fecha = document.getElementById('matchDate')?.value || '';
 
   if (!nombre) {
     alert('Por favor ingrese el nombre del jugador');
@@ -128,32 +129,22 @@ async function calcularCalificacion() {
   const actitud = parseInt(document.querySelector('input[name="actitud"]:checked')?.value || 0);
   let bonificaciones = 0;
   const bonificacionesDetalle = [];
-  document.querySelectorAll('.criteria-section:last-child input[type="checkbox"]:checked').forEach(checkbox => {
+  const checkboxes = document.querySelectorAll('.criteria-section:last-child input[type="checkbox"]:checked');
+  checkboxes.forEach(checkbox => {
     bonificaciones += parseInt(checkbox.value);
     bonificacionesDetalle.push({ nombre: checkbox.parentElement.textContent.trim(), puntos: parseInt(checkbox.value) });
   });
 
   const total = asistencia + rendimiento + actitud + bonificaciones;
-  // Crear jugador completo con bonificacionesDetalle para la interfaz
   const jugadorCompleto = { nombre, fecha, asistencia, rendimiento, actitud, bonificaciones, bonificacionesDetalle, total, timestamp: new Date() };
   jugadores.unshift(jugadorCompleto);
 
-  // Crear versión filtrada para guardar en Supabase, excluyendo bonificacionesDetalle
-  const jugadorParaGuardar = {
-    nombre,
-    fecha,
-    asistencia,
-    rendimiento,
-    actitud,
-    bonificaciones, // Usar solo el total de bonificaciones
-    total,
-    timestamp: new Date().toISOString(),
-  };
+  const jugadorParaGuardar = { nombre, fecha, asistencia, rendimiento, actitud, bonificaciones, total, timestamp: new Date().toISOString() };
   await guardarDatos(jugadorParaGuardar);
   mostrarNotificacion(`Calificación de ${nombre} guardada correctamente`, 'success');
   actualizarResultados();
 
-  document.getElementById('playerName').value = '';
+  document.getElementById('playerName')?.value = '';
   document.querySelectorAll('input[type="radio"]').forEach(radio => (radio.checked = false));
   document.querySelectorAll('input[type="checkbox"]').forEach(checkbox => (checkbox.checked = false));
 }
@@ -169,7 +160,6 @@ async function guardarDatos(nuevoJugador) {
     console.log('Guardando datos - nuevoJugador:', nuevoJugador);
     let datos;
     if (nuevoJugador) {
-      // Añadir el nuevo jugador filtrado a la lista existente
       const nuevoJugadorData = {
         nombre: nuevoJugador.nombre,
         fecha: nuevoJugador.fecha,
@@ -195,7 +185,6 @@ async function guardarDatos(nuevoJugador) {
         fechaGuardado: new Date().toISOString(),
       };
     } else {
-      // Enviar todos los jugadores filtrados
       datos = {
         jugadores: jugadores.map(j => ({
           nombre: j.nombre,
@@ -225,9 +214,9 @@ async function guardarDatos(nuevoJugador) {
       body: JSON.stringify(datos),
     });
     if (!response.ok) throw new Error(`Error al guardar en Supabase: ${response.status} - ${response.statusText}`);
-    const result = await response.json();
+    const result = await response.json().catch(() => ({}));
     console.log('Respuesta de guardar-datos:', result);
-    jugadores = result.jugadores || []; // Actualiza con los datos devueltos por Supabase
+    jugadores = result.jugadores || [];
     vistaActual = result.vistaActual || vistaActual;
     localStorage.setItem(STORAGE_KEY, JSON.stringify({ jugadores, vistaActual, fechaGuardado: result.fechaGuardado || new Date().toISOString() }));
     console.log('💾 Datos guardados en Supabase');
@@ -238,7 +227,6 @@ async function guardarDatos(nuevoJugador) {
     localStorage.setItem(STORAGE_KEY, JSON.stringify({ jugadores, vistaActual, fechaGuardado: new Date().toISOString() }));
   }
 }
-
 
 function mostrarNotificacion(mensaje, tipo = 'info') {
   const notification = document.createElement('div');
@@ -275,7 +263,8 @@ function mostrarNotificacion(mensaje, tipo = 'info') {
 
 document.addEventListener('DOMContentLoaded', async () => {
   console.log('DOM cargado, iniciando...');
-  document.getElementById('matchDate').valueAsDate = new Date();
+  const matchDate = document.getElementById('matchDate');
+  if (matchDate) matchDate.valueAsDate = new Date();
   await cargarDatos();
   actualizarResultados();
   if (jugadores.length > 0) {
@@ -288,7 +277,6 @@ document.addEventListener('DOMContentLoaded', async () => {
   console.log('Sesión obtenida:', session, 'Error:', error);
   if (!session) {
     console.log('No hay sesión, mostrando formulario de login...');
-    // Crear formulario de login
     const loginDiv = document.createElement('div');
     loginDiv.id = 'loginDiv';
     loginDiv.style.cssText = 'position: fixed; top: 20px; right: 20px; padding: 20px; background: #fff; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); z-index: 1000;';
@@ -327,79 +315,38 @@ document.addEventListener('DOMContentLoaded', async () => {
       if (error) mostrarNotificacion(`Error: ${error.message}`, 'error');
       else {
         mostrarNotificacion('Registro exitoso, verifica tu correo si es necesario.', 'success');
-        await supabase.auth.refreshSession(); // Forzar refresh de sesión
+        await supabase.auth.refreshSession();
         console.log('Sesión refrescada tras registro:', await supabase.auth.getSession());
       }
     });
 
-    // No desactivar los inputs del formulario, solo los botones principales
     document.querySelectorAll('.calculate-btn, .expand-btn, .clear-btn').forEach(el => (el.disabled = true));
   } else {
     console.log('Usuario autenticado con ID:', session.user.id);
-    isAdmin = session.user.id === 'c60554e6-2070-4c77-9bd1-9f441b0c4669'; // ID del administrador
-    document.querySelectorAll('.btn, .expand-btn, .clear-btn').forEach(el => (el.disabled = false)); // Excluir inputs
+    isAdmin = session.user.id === 'c60554e6-2070-4c77-9bd1-9f441b0c4669';
+    document.querySelectorAll('.btn, .expand-btn, .clear-btn').forEach(el => (el.disabled = false));
   }
 
-  // Listeners para botones
-  document.querySelector('.calculate-btn')?.addEventListener('click', calcularCalificacion);
-  document.querySelector('#rankingBtn')?.addEventListener('click', () => mostrarVista('ranking'));
-  document.querySelector('#historialBtn')?.addEventListener('click', () => mostrarVista('historial'));
-  document.querySelector('#avanzadoBtn')?.addEventListener('click', () => mostrarVista('avanzado'));
-});
-
-// ... (código anterior hasta calcularCalificacion permanece igual)
-
-async function calcularCalificacion() {
-  if (!(await checkAuth()).authenticated) {
-    mostrarNotificacion('Solo el administrador puede calificar jugadores', 'error');
-    return;
-  }
-  const nombre = document.getElementById('playerName').value.trim();
-  const fecha = document.getElementById('matchDate').value;
-
-  if (!nombre) {
-    alert('Por favor ingrese el nombre del jugador');
-    return;
-  }
-  if (!fecha) {
-    alert('Por favor seleccione la fecha del partido');
-    return;
-  }
-
-  const asistencia = parseInt(document.querySelector('input[name="asistencia"]:checked')?.value || 0);
-  const rendimiento = parseInt(document.querySelector('input[name="rendimiento"]:checked')?.value || 0);
-  const actitud = parseInt(document.querySelector('input[name="actitud"]:checked')?.value || 0);
-  let bonificaciones = 0;
-  const bonificacionesDetalle = [];
-  document.querySelectorAll('.criteria-section:last-child input[type="checkbox"]:checked').forEach(checkbox => {
-    bonificaciones += parseInt(checkbox.value);
-    bonificacionesDetalle.push({ nombre: checkbox.parentElement.textContent.trim(), puntos: parseInt(checkbox.value) });
-  });
-
-  const total = asistencia + rendimiento + actitud + bonificaciones;
-  // Crear jugador completo con bonificacionesDetalle para la interfaz
-  const jugadorCompleto = { nombre, fecha, asistencia, rendimiento, actitud, bonificaciones, bonificacionesDetalle, total, timestamp: new Date() };
-  jugadores.unshift(jugadorCompleto);
-
-  // Crear versión filtrada para guardar en Supabase, excluyendo bonificacionesDetalle
-  const jugadorParaGuardar = { nombre, fecha, asistencia, rendimiento, actitud, bonificaciones, total, timestamp: new Date().toISOString() };
-  await guardarDatos(jugadorParaGuardar);
-  mostrarNotificacion(`Calificación de ${nombre} guardada correctamente`, 'success');
-  actualizarResultados();
-
-  document.getElementById('playerName').value = '';
-  document.querySelectorAll('input[type="radio"]').forEach(radio => (radio.checked = false));
-  document.querySelectorAll('input[type="checkbox"]').forEach(checkbox => (checkbox.checked = false));
+  const calculateBtn = document.querySelector('.calculate-btn');
+  if (calculateBtn) calculateBtn.addEventListener('click', calcularCalificacion);
+  const rankingBtn = document.querySelector('#rankingBtn');
+  if (rankingBtn) rankingBtn.addEventListener('click', () => mostrarVista('ranking'));
+  const historialBtn = document.querySelector('#historialBtn');
+  if (historialBtn) historialBtn.addEventListener('click', () => mostrarVista('historial'));
+  const avanzadoBtn = document.querySelector('#avanzadoBtn');
+  if (avanzadoBtn) avanzadoBtn.addEventListener('click', () => mostrarVista('avanzado'));
 }
-
-// ... (código posterior permanece igual)
 
 function mostrarVista(vista) {
   vistaActual = vista;
-  document.getElementById('rankingBtn').classList.remove('active');
-  document.getElementById('historialBtn').classList.remove('active');
-  document.getElementById('avanzadoBtn').classList.remove('active');
-  document.getElementById(vista + 'Btn').classList.add('active');
+  const rankingBtn = document.getElementById('rankingBtn');
+  const historialBtn = document.getElementById('historialBtn');
+  const avanzadoBtn = document.getElementById('avanzadoBtn');
+  if (rankingBtn) rankingBtn.classList.remove('active');
+  if (historialBtn) historialBtn.classList.remove('active');
+  if (avanzadoBtn) avanzadoBtn.classList.remove('active');
+  const activeBtn = document.getElementById(vista + 'Btn');
+  if (activeBtn) activeBtn.classList.add('active');
   guardarDatos();
   actualizarResultados();
 }
@@ -438,6 +385,7 @@ function consolidarJugadores() {
 
 function actualizarResultados() {
   const container = document.getElementById('resultados');
+  if (!container) return;
   if (jugadores.length === 0) {
     container.innerHTML = `
       <div style="text-align: center; color: #666; padding: 30px">
@@ -459,7 +407,7 @@ function mostrarRankingConsolidado(container) {
     <div class="total-score">
       <h3>📊 Estadísticas Generales</h3>
       <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(100px, 1fr)); gap: 15px; margin-top: 10px;">
-        <div><div style="font-size: 1.3rem; font-weight: bold; color: #FFD700;">${(jugadores.reduce((sum, j) => sum + j.total, 0) / jugadores.length).toFixed(1)}</div><div style="font-size: 0.85rem; color: #FFFFFF;">Promedio General</div></div>
+        <div><div style="font-size: 1.3rem; font-weight: bold; color: #FFD700;">${(jugadores.reduce((sum, j) => sum + j.total, 0) / jugadores.length || 0).toFixed(1)}</div><div style="font-size: 0.85rem; color: #FFFFFF;">Promedio General</div></div>
         <div><div style="font-size: 1.3rem; font-weight: bold; color: #51cf66;">${jugadores.length}</div><div style="font-size: 0.85rem; color: #FFFFFF;">Total Partidos</div></div>
         <div><div style="font-size: 1.3rem; font-weight: bold; color: #ff6b6b;">${jugadoresConsolidados.length}</div><div style="font-size: 0.85rem; color: #FFFFFF;">Jugadores</div></div>
       </div>
@@ -479,7 +427,7 @@ function mostrarRankingConsolidado(container) {
         <td class="score-cell">${jugador.promedio.toFixed(1)}</td>
         <td>${jugador.totalPartidos}</td>
         <td style="color: #51cf66; font-weight: bold;">${jugador.mejorPartido}</td>
-        <td>${jugador.ultimaFecha.toLocaleDateString('es-ES')}</td>
+        <td>${jugador.ultimaFecha?.toLocaleDateString('es-ES') || 'N/A'}</td>
         <td><button class="expand-btn" data-player="${jugador.nombre}" ${!isAdmin ? 'disabled' : ''}>Ver Historial</button></td>
       </tr>
       <tr id="historial-${jugador.nombre.replace(/\s+/g, '-')}" style="display: none;"><td colspan="7"><div class="player-history"><h4 style="margin-bottom: 8px; color: #000;">Historial de ${jugador.nombre}</h4>${jugador.partidos
@@ -503,9 +451,9 @@ function mostrarHistorialCompleto(container) {
     <div class="total-score">
       <h3>📊 Estadísticas del Historial</h3>
       <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(100px, 1fr)); gap: 15px; margin-top: 10px;">
-        <div><div style="font-size: 1.3rem; font-weight: bold; color: #FFD700;">${(jugadores.reduce((sum, j) => sum + j.total, 0) / jugadores.length).toFixed(1)}</div><div style="font-size: 0.85rem; color: #FFFFFF;">Promedio</div></div>
-        <div><div style="font-size: 1.3rem; font-weight: bold; color: #51cf66;">${Math.max(...jugadores.map(j => j.total))}</div><div style="font-size: 0.85rem; color: #FFFFFF;">Máximo</div></div>
-        <div><div style="font-size: 1.3rem; font-weight: bold; color: #ff6b6b;">${Math.min(...jugadores.map(j => j.total))}</div><div style="font-size: 0.85rem; color: #FFFFFF;">Mínimo</div></div>
+        <div><div style="font-size: 1.3rem; font-weight: bold; color: #FFD700;">${(jugadores.reduce((sum, j) => sum + j.total, 0) / jugadores.length || 0).toFixed(1)}</div><div style="font-size: 0.85rem; color: #FFFFFF;">Promedio</div></div>
+        <div><div style="font-size: 1.3rem; font-weight: bold; color: #51cf66;">${Math.max(...jugadores.map(j => j.total)) || 0}</div><div style="font-size: 0.85rem; color: #FFFFFF;">Máximo</div></div>
+        <div><div style="font-size: 1.3rem; font-weight: bold; color: #ff6b6b;">${Math.min(...jugadores.map(j => j.total)) || 0}</div><div style="font-size: 0.85rem; color: #FFFFFF;">Mínimo</div></div>
       </div>
     </div>
     <h3 style="color: #000; margin: 15px 0 10px 0;">📋 Historial Completo de Partidos</h3>
@@ -554,7 +502,7 @@ async function toggleHistorialJugador(nombreJugador) {
   if (!(await checkAuth()).authenticated) return;
   const id = `historial-${nombreJugador.replace(/\s+/g, '-')}`;
   const elemento = document.getElementById(id);
-  elemento.style.display = elemento.style.display === 'none' ? '' : 'none';
+  if (elemento) elemento.style.display = elemento.style.display === 'none' ? '' : 'none';
 }
 
 async function eliminarPartido(index) {
@@ -651,10 +599,14 @@ async function importarDatos() {
 }
 
 function actualizarVistas() {
-  document.getElementById('rankingBtn').classList.remove('active');
-  document.getElementById('historialBtn').classList.remove('active');
-  document.getElementById('avanzadoBtn').classList.remove('active');
-  document.getElementById(vistaActual + 'Btn').classList.add('active');
+  const rankingBtn = document.getElementById('rankingBtn');
+  const historialBtn = document.getElementById('historialBtn');
+  const avanzadoBtn = document.getElementById('avanzadoBtn');
+  if (rankingBtn) rankingBtn.classList.remove('active');
+  if (historialBtn) historialBtn.classList.remove('active');
+  if (avanzadoBtn) avanzadoBtn.classList.remove('active');
+  const activeBtn = document.getElementById(vistaActual + 'Btn');
+  if (activeBtn) activeBtn.classList.add('active');
 }
 
 // Delegación de eventos para botones dinámicos
