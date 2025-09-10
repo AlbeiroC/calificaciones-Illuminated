@@ -106,6 +106,58 @@ async function cargarDatos() {
   actualizarResultados();
 }
 
+async function calcularCalificacion() {
+  if (!(await checkAuth()).authenticated) {
+    mostrarNotificacion('Solo el administrador puede calificar jugadores', 'error');
+    return;
+  }
+  const nombre = document.getElementById('playerName').value.trim();
+  const fecha = document.getElementById('matchDate').value;
+
+  if (!nombre) {
+    alert('Por favor ingrese el nombre del jugador');
+    return;
+  }
+  if (!fecha) {
+    alert('Por favor seleccione la fecha del partido');
+    return;
+  }
+
+  const asistencia = parseInt(document.querySelector('input[name="asistencia"]:checked')?.value || 0);
+  const rendimiento = parseInt(document.querySelector('input[name="rendimiento"]:checked')?.value || 0);
+  const actitud = parseInt(document.querySelector('input[name="actitud"]:checked')?.value || 0);
+  let bonificaciones = 0;
+  const bonificacionesDetalle = [];
+  document.querySelectorAll('.criteria-section:last-child input[type="checkbox"]:checked').forEach(checkbox => {
+    bonificaciones += parseInt(checkbox.value);
+    bonificacionesDetalle.push({ nombre: checkbox.parentElement.textContent.trim(), puntos: parseInt(checkbox.value) });
+  });
+
+  const total = asistencia + rendimiento + actitud + bonificaciones;
+  // Crear jugador completo con bonificacionesDetalle para la interfaz
+  const jugadorCompleto = { nombre, fecha, asistencia, rendimiento, actitud, bonificaciones, bonificacionesDetalle, total, timestamp: new Date() };
+  jugadores.unshift(jugadorCompleto);
+
+  // Crear versión filtrada para guardar en Supabase, excluyendo bonificacionesDetalle
+  const jugadorParaGuardar = {
+    nombre,
+    fecha,
+    asistencia,
+    rendimiento,
+    actitud,
+    bonificaciones, // Usar solo el total de bonificaciones
+    total,
+    timestamp: new Date().toISOString(),
+  };
+  await guardarDatos(jugadorParaGuardar);
+  mostrarNotificacion(`Calificación de ${nombre} guardada correctamente`, 'success');
+  actualizarResultados();
+
+  document.getElementById('playerName').value = '';
+  document.querySelectorAll('input[type="radio"]').forEach(radio => (radio.checked = false));
+  document.querySelectorAll('input[type="checkbox"]').forEach(checkbox => (checkbox.checked = false));
+}
+
 async function guardarDatos(nuevoJugador) {
   try {
     const { authenticated, isAdmin: isCurrentAdmin } = await checkAuth();
@@ -117,7 +169,7 @@ async function guardarDatos(nuevoJugador) {
     console.log('Guardando datos - nuevoJugador:', nuevoJugador);
     let datos;
     if (nuevoJugador) {
-      // Añadir el nuevo jugador a la lista existente, excluyendo bonificacionesDetalle
+      // Añadir el nuevo jugador filtrado a la lista existente
       const nuevoJugadorData = {
         nombre: nuevoJugador.nombre,
         fecha: nuevoJugador.fecha,
@@ -126,15 +178,24 @@ async function guardarDatos(nuevoJugador) {
         actitud: nuevoJugador.actitud,
         bonificaciones: nuevoJugador.bonificaciones,
         total: nuevoJugador.total,
-        timestamp: nuevoJugador.timestamp || new Date().toISOString(),
+        timestamp: nuevoJugador.timestamp,
       };
       datos = {
-        jugadores: [...jugadores, nuevoJugadorData],
+        jugadores: [...jugadores.map(j => ({
+          nombre: j.nombre,
+          fecha: j.fecha,
+          asistencia: j.asistencia,
+          rendimiento: j.rendimiento,
+          actitud: j.actitud,
+          bonificaciones: j.bonificaciones,
+          total: j.total,
+          timestamp: j.timestamp || new Date().toISOString(),
+        })), nuevoJugadorData],
         vistaActual,
         fechaGuardado: new Date().toISOString(),
       };
     } else {
-      // Enviar todos los jugadores actuales, excluyendo bonificacionesDetalle
+      // Enviar todos los jugadores filtrados
       datos = {
         jugadores: jugadores.map(j => ({
           nombre: j.nombre,
@@ -177,6 +238,7 @@ async function guardarDatos(nuevoJugador) {
     localStorage.setItem(STORAGE_KEY, JSON.stringify({ jugadores, vistaActual, fechaGuardado: new Date().toISOString() }));
   }
 }
+
 
 function mostrarNotificacion(mensaje, tipo = 'info') {
   const notification = document.createElement('div');
