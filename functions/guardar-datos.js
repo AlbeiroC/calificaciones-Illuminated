@@ -4,7 +4,7 @@ const supabaseKey = process.env.SUPABASE_KEY;
 const supabase = createClient(supabaseUrl, supabaseKey);
 
 // ID del usuario autorizado (reemplaza con el user_id del admin si es diferente)
-const ALLOWED_USER_ID = '6594ad3c-020b-4671-8321-7b60138faedf';
+const ALLOWED_USER_ID = 'c60554e6-2070-4c77-9bd1-9f441b0c4669';
 
 exports.handler = async function(event, context) {
   try {

@@ -20,7 +20,7 @@ supabase.auth.onAuthStateChange((event, session) => {
   console.log('Auth state changed:', event, session ? `Sesión encontrada con ID: ${session.user.id}` : 'Sin sesión');
   if (event === 'SIGNED_IN' && session) {
     console.log('Usuario autenticado con ID:', session.user.id);
-    isAdmin = session.user.id === 'your-admin-user-id-here'; // Reemplaza con el user_id real del administrador
+    isAdmin = session.user.id === 'c60554e6-2070-4c77-9bd1-9f441b0c4669'; // Reemplaza con el user_id real del administrador
     cargarDatos();
     if (document.querySelector('div#loginDiv')) {
       document.querySelector('div#loginDiv').remove();
@@ -48,7 +48,7 @@ async function checkAuth() {
       }
       console.log('Sesión refrescada con éxito');
     }
-    const adminCheck = session.user.id === 'your-admin-user-id-here'; // Reemplaza con el user_id real del administrador
+    const adminCheck = session.user.id === 'c60554e6-2070-4c77-9bd1-9f441b0c4669'; // Reemplaza con el user_id real del administrador
     return { authenticated: true, isAdmin: adminCheck };
   } catch (error) {
     console.error('Error en autenticación:', error);
@@ -265,7 +265,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.querySelectorAll('.calculate-btn, .expand-btn, .clear-btn').forEach(el => (el.disabled = true));
   } else {
     console.log('Usuario autenticado con ID:', session.user.id);
-    isAdmin = session.user.id === 'your-admin-user-id-here'; // Reemplaza con el user_id real del administrador
+    isAdmin = session.user.id === 'c60554e6-2070-4c77-9bd1-9f441b0c4669'; // Reemplaza con el user_id real del administrador
     document.querySelectorAll('.btn, .expand-btn, .clear-btn').forEach(el => (el.disabled = false)); // Excluir inputs
   }
 
