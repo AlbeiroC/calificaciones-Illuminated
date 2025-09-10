@@ -134,10 +134,22 @@ async function calcularCalificacion() {
   });
 
   const total = asistencia + rendimiento + actitud + bonificaciones;
-  const jugador = { nombre, fecha, asistencia, rendimiento, actitud, bonificaciones, bonificacionesDetalle, total, timestamp: new Date() };
-  jugadores.unshift(jugador);
+  // Crear jugador completo con bonificacionesDetalle para la interfaz
+  const jugadorCompleto = { nombre, fecha, asistencia, rendimiento, actitud, bonificaciones, bonificacionesDetalle, total, timestamp: new Date() };
+  jugadores.unshift(jugadorCompleto);
 
-  await guardarDatos(jugador);
+  // Crear versión filtrada para guardar en Supabase, excluyendo bonificacionesDetalle
+  const jugadorParaGuardar = {
+    nombre,
+    fecha,
+    asistencia,
+    rendimiento,
+    actitud,
+    bonificaciones, // Usar solo el total de bonificaciones
+    total,
+    timestamp: new Date().toISOString(),
+  };
+  await guardarDatos(jugadorParaGuardar);
   mostrarNotificacion(`Calificación de ${nombre} guardada correctamente`, 'success');
   actualizarResultados();
 
@@ -151,45 +163,58 @@ async function guardarDatos(nuevoJugador) {
     const { authenticated, isAdmin: isCurrentAdmin } = await checkAuth();
     console.log('guardarDatos - Autenticado:', authenticated, 'Es admin:', isCurrentAdmin);
     if (!authenticated || !isCurrentAdmin) {
-      mostrarNotificacion('No autorizado para guardar datos', 'error');
+      mostrarNotificacion('Solo el administrador puede guardar datos', 'error');
       return;
     }
     console.log('Guardando datos - nuevoJugador:', nuevoJugador);
-
-    const datos = nuevoJugador
-      ? {
-          jugadores: [
-            {
-              nombre: nuevoJugador.nombre,
-              fecha: nuevoJugador.fecha,
-              asistencia: nuevoJugador.asistencia,
-              rendimiento: nuevoJugador.rendimiento,
-              actitud: nuevoJugador.actitud,
-              bonificaciones: nuevoJugador.bonificaciones,
-              total: nuevoJugador.total,
-              timestamp: nuevoJugador.timestamp || new Date().toISOString(),
-            },
-          ],
-          vistaActual,
-          fechaGuardado: new Date().toISOString(),
-        }
-      : {
-          jugadores: jugadores.map(j => ({
-            nombre: j.nombre,
-            fecha: j.fecha,
-            asistencia: j.asistencia,
-            rendimiento: j.rendimiento,
-            actitud: j.actitud,
-            bonificaciones: j.bonificaciones,
-            total: j.total,
-            timestamp: j.timestamp || new Date().toISOString(),
-          })),
-          vistaActual,
-          fechaGuardado: new Date().toISOString(),
-        };
+    let datos;
+    if (nuevoJugador) {
+      // Añadir el nuevo jugador filtrado a la lista existente
+      const nuevoJugadorData = {
+        nombre: nuevoJugador.nombre,
+        fecha: nuevoJugador.fecha,
+        asistencia: nuevoJugador.asistencia,
+        rendimiento: nuevoJugador.rendimiento,
+        actitud: nuevoJugador.actitud,
+        bonificaciones: nuevoJugador.bonificaciones,
+        total: nuevoJugador.total,
+        timestamp: nuevoJugador.timestamp,
+      };
+      datos = {
+        jugadores: [...jugadores.map(j => ({
+          nombre: j.nombre,
+          fecha: j.fecha,
+          asistencia: j.asistencia,
+          rendimiento: j.rendimiento,
+          actitud: j.actitud,
+          bonificaciones: j.bonificaciones,
+          total: j.total,
+          timestamp: j.timestamp || new Date().toISOString(),
+        })), nuevoJugadorData],
+        vistaActual,
+        fechaGuardado: new Date().toISOString(),
+      };
+    } else {
+      // Enviar todos los jugadores filtrados
+      datos = {
+        jugadores: jugadores.map(j => ({
+          nombre: j.nombre,
+          fecha: j.fecha,
+          asistencia: j.asistencia,
+          rendimiento: j.rendimiento,
+          actitud: j.actitud,
+          bonificaciones: j.bonificaciones,
+          total: j.total,
+          timestamp: j.timestamp || new Date().toISOString(),
+        })),
+        vistaActual,
+        fechaGuardado: new Date().toISOString(),
+      };
+    }
 
     const { data: { session } } = await supabase.auth.getSession();
     const token = session.access_token;
+    console.log('Token de sesión para guardar:', token);
 
     const response = await fetch(`${functionBaseUrl}/guardar-datos`, {
       method: 'POST',
@@ -199,13 +224,10 @@ async function guardarDatos(nuevoJugador) {
       },
       body: JSON.stringify(datos),
     });
-    if (!response.ok) throw new Error(`Error al guardar en Supabase: ${await response.text()}`);
+    if (!response.ok) throw new Error(`Error al guardar en Supabase: ${response.status} - ${response.statusText}`);
     const result = await response.json();
     console.log('Respuesta de guardar-datos:', result);
-    // Solo actualizar jugadores si el backend devuelve una lista completa
-    if (result.jugadores && Array.isArray(result.jugadores)) {
-      jugadores = result.jugadores;
-    }
+    jugadores = result.jugadores || []; // Actualiza con los datos devueltos por Supabase
     vistaActual = result.vistaActual || vistaActual;
     localStorage.setItem(STORAGE_KEY, JSON.stringify({ jugadores, vistaActual, fechaGuardado: result.fechaGuardado || new Date().toISOString() }));
     console.log('💾 Datos guardados en Supabase');
@@ -216,6 +238,7 @@ async function guardarDatos(nuevoJugador) {
     localStorage.setItem(STORAGE_KEY, JSON.stringify({ jugadores, vistaActual, fechaGuardado: new Date().toISOString() }));
   }
 }
+
 
 function mostrarNotificacion(mensaje, tipo = 'info') {
   const notification = document.createElement('div');
