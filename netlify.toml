@@ -2,5 +2,9 @@
   functions = "functions"
 
 [functions]
+  directory = "functions"
   [functions.guardar-datos]
     included_files = ["functions/guardar-datos.js"]
+
+[[plugins]]
+  package = "@netlify/plugin-functions-install-core"
